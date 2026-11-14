@@ -31,6 +31,8 @@ public partial class SetupViewModel : ViewModelBase
             OnPropertyChanged(nameof(HasSources));
             OnPropertyChanged(nameof(HasCloudSource));
             OnPropertyChanged(nameof(CanChooseDestination));
+            OnPropertyChanged(nameof(ShowImagepixelFields));
+            OnPropertyChanged(nameof(ShowLocalFields));
         };
     }
 
@@ -52,7 +54,9 @@ public partial class SetupViewModel : ViewModelBase
     /// restore it on a new computer. No folder has to be chosen then.
     /// </summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanChooseDestination), nameof(NeedsSource), nameof(ConnectText))]
+    [NotifyPropertyChangedFor(
+        nameof(CanChooseDestination), nameof(NeedsSource), nameof(ConnectText),
+        nameof(ShowImagepixelFields), nameof(ShowLocalFields))]
     public partial bool ExistingBackupOnly { get; set; }
 
     public bool NeedsSource => !ExistingBackupOnly;
@@ -62,12 +66,23 @@ public partial class SetupViewModel : ViewModelBase
 
     /// <summary>Where the backup goes. Imagepixel Storage is the recommended choice and preselected.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsImagepixel), nameof(IsLocal), nameof(DestinationHint), nameof(HasDestinationHint))]
+    [NotifyPropertyChangedFor(
+        nameof(IsImagepixel), nameof(IsLocal), nameof(DestinationHint), nameof(HasDestinationHint),
+        nameof(ShowImagepixelFields), nameof(ShowLocalFields))]
     public partial StorageKind Kind { get; set; } = StorageKind.ImagepixelStorage;
 
     public bool IsImagepixel => Kind == StorageKind.ImagepixelStorage;
 
     public bool IsLocal => Kind == StorageKind.LocalFolder;
+
+    // The fields of a destination only appear once the customer has reached that step.
+    public bool ShowImagepixelFields => IsImagepixel && CanChooseDestination;
+
+    public bool ShowLocalFields => IsLocal && CanChooseDestination;
+
+    /// <summary>Shows the password while typing. It cannot be reset later, so typos matter.</summary>
+    [ObservableProperty]
+    public partial bool ShowPassword { get; set; }
 
     public string ConnectText => ExistingBackupOnly ? "Verbinden" : "Backup starten";
 
@@ -297,7 +312,7 @@ public partial class SetupViewModel : ViewModelBase
 
         if (Password.Length < MinimumPasswordLength)
         {
-            return $"Bitte wähle ein Passwort mit mindestens {MinimumPasswordLength} Zeichen.";
+            return $"Bitte wähle ein Verschlüsselungs-Passwort mit mindestens {MinimumPasswordLength} Zeichen.";
         }
 
         return null;

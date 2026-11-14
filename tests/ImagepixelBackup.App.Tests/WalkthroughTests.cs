@@ -87,6 +87,9 @@ public sealed class WalkthroughTests : IDisposable
         var setup = Assert.IsType<SetupViewModel>(main.CurrentPage);
         Assert.False(setup.CanChooseDestination);
         Assert.True(setup.IsImagepixel);
+
+        // the fields of the destination only appear once a source has been chosen
+        Assert.False(setup.ShowImagepixelFields);
         Capture(window, "01-einrichtung-start");
 
         await setup.ConnectCommand.ExecuteAsync(null);
@@ -117,10 +120,22 @@ public sealed class WalkthroughTests : IDisposable
         setup.SetupCodeText = new SetupCode("kunde-4711", "ABCDEFGHIJKLMNOPQRST", "geheim", "eu-central-2").Encode();
         Assert.Equal("kunde-4711", setup.Bucket);
         Assert.Equal("ABCDEFGHIJKLMNOPQRST", setup.AccessKeyId);
+        Assert.True(setup.ShowImagepixelFields);
         Capture(window, "03-einrichtung-imagepixel-storage");
+
+        // the whole page: what comes from Imagepixel, and the password the customer chooses
+        setup.ShowPassword = true;
+        setup.Password = "Mein-eigenes-Passwort";
+        window.Height = 1420;
+        Capture(window, "03b-einrichtung-komplett");
+        window.Height = 700;
+        setup.ShowPassword = false;
+        setup.Password = "";
 
         setup.ChooseKindCommand.Execute("LocalFolder");
         Assert.True(setup.IsLocal);
+        Assert.False(setup.ShowImagepixelFields);
+        Assert.True(setup.ShowLocalFields);
         setup.Password = Password;
         setup.PasswordRepeat = Password;
 

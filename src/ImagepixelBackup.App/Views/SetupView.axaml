@@ -109,10 +109,21 @@
                         </Button>
                     </Grid>
 
-                    <!-- Imagepixel Storage: a setup code fills in everything at once -->
-                    <StackPanel IsVisible="{Binding IsImagepixel}">
-                        <TextBlock Classes="label" Text="Einrichtungscode (falls du einen bekommen hast)" />
-                        <TextBox Text="{Binding SetupCodeText}" PlaceholderText="IPB1-…" />
+                    <!-- Imagepixel Storage: everything in this block was handed out by Imagepixel -->
+                    <StackPanel IsVisible="{Binding ShowImagepixelFields}">
+                        <Border Classes="note" Margin="0,14,0,0">
+                            <StackPanel Spacing="3">
+                                <TextBlock FontWeight="SemiBold" Text="Diese Daten bekommst du von Imagepixel" />
+                                <TextBlock Classes="subtle"
+                                           Text="Sie stehen in der Nachricht, die du nach der Einrichtung deines Speichers erhalten hast. Am schnellsten geht es mit dem Einrichtungscode: Er füllt die drei Felder darunter von selbst aus." />
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Classes="label" Text="Einrichtungscode" />
+                        <TextBox Text="{Binding SetupCodeText}" PlaceholderText="IPB1-… (aus der Nachricht von Imagepixel einfügen)" />
+
+                        <TextBlock Classes="subtle" Margin="0,14,0,0"
+                                   Text="Ohne Einrichtungscode trägst du die drei Angaben einzeln ein:" />
                         <TextBlock Classes="label" Text="Bucket-Name" />
                         <TextBox Text="{Binding Bucket}" />
                         <TextBlock Classes="label" Text="Zugangsschlüssel" />
@@ -121,7 +132,7 @@
                         <TextBox Text="{Binding SecretAccessKey}" PasswordChar="●" />
                     </StackPanel>
 
-                    <StackPanel IsVisible="{Binding IsLocal}">
+                    <StackPanel IsVisible="{Binding ShowLocalFields}">
                         <TextBlock Classes="label" Text="Ordner für das Backup" />
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                             <TextBox Text="{Binding LocalPath}" PlaceholderText="z. B. E:\Backup" />
@@ -138,14 +149,29 @@
             <!-- step 3: password -->
             <Border Classes="card" IsVisible="{Binding CanChooseDestination}">
                 <StackPanel IsEnabled="{Binding CanEdit}">
-                    <TextBlock Classes="heading" Text="3. Passwort für dein Backup" />
-                    <TextBlock Classes="subtle" Margin="0,6,0,0"
-                               Text="Mit diesem Passwort werden deine Daten verschlüsselt, bevor sie deinen Rechner verlassen. Bewahre es gut auf: Ohne das Passwort kann niemand das Backup wiederherstellen – auch Imagepixel nicht." />
+                    <TextBlock Classes="heading" Text="3. Dein Verschlüsselungs-Passwort" />
 
-                    <TextBlock Classes="label" Text="Passwort" />
-                    <TextBox Text="{Binding Password}" PasswordChar="●" />
+                    <Border Classes="note" Margin="0,12,0,0">
+                        <StackPanel Spacing="3">
+                            <TextBlock FontWeight="SemiBold" Text="Dieses Passwort legst du selbst fest" />
+                            <TextBlock Classes="subtle"
+                                       Text="Du bekommst es nicht von Imagepixel, und Imagepixel erfährt es nie. Damit werden deine Daten auf deinem Rechner verschlüsselt, bevor sie ihn verlassen." />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="warning" Margin="0,8,0,0">
+                        <StackPanel Spacing="3">
+                            <TextBlock FontWeight="SemiBold" Text="Wichtig: Ohne dieses Passwort sind die Daten verloren" />
+                            <TextBlock TextWrapping="Wrap"
+                                       Text="Wenn du das Passwort verlierst, kommt niemand mehr an dein Backup – auch Imagepixel nicht. Es lässt sich nicht zurücksetzen. Schreib es auf und bewahre es sicher auf, zum Beispiel in einem Passwort-Manager." />
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Classes="label" Text="Verschlüsselungs-Passwort (mindestens 8 Zeichen)" />
+                    <TextBox Text="{Binding Password}" PasswordChar="●" RevealPassword="{Binding ShowPassword}" />
                     <TextBlock Classes="label" Text="Passwort wiederholen (nur bei einem neuen Backup nötig)" />
-                    <TextBox Text="{Binding PasswordRepeat}" PasswordChar="●" />
+                    <TextBox Text="{Binding PasswordRepeat}" PasswordChar="●" RevealPassword="{Binding ShowPassword}" />
+                    <CheckBox Content="Passwort anzeigen" IsChecked="{Binding ShowPassword}" Margin="0,8,0,0" />
                 </StackPanel>
             </Border>
 
