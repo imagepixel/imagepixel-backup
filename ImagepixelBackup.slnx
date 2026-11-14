@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ImagepixelBackup.App/ImagepixelBackup.App.csproj" />
+    <Project Path="src/ImagepixelBackup.Core/ImagepixelBackup.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ImagepixelBackup.App.Tests/ImagepixelBackup.App.Tests.csproj" />
+    <Project Path="tests/ImagepixelBackup.Core.Tests/ImagepixelBackup.Core.Tests.csproj" />
+  </Folder>
+</Solution>

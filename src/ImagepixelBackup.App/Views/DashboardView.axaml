@@ -1,0 +1,161 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ImagepixelBackup.App.ViewModels"
+             xmlns:core="using:ImagepixelBackup.Core"
+             x:Class="ImagepixelBackup.App.Views.DashboardView"
+             x:DataType="vm:DashboardViewModel"
+             x:Name="Root">
+
+    <Grid RowDefinitions="Auto,*,Auto">
+
+        <!-- header -->
+        <Border Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,0,0,1" Padding="28,14">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                <Image Source="/Assets/app-icon.png" Width="44" Height="44" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Classes="title" Text="Imagepixel Backup" />
+                    <TextBlock Classes="subtle" Text="{Binding StorageName}" TextWrapping="NoWrap"
+                               TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Button Content="Speicher wechseln" Command="{Binding ChangeStorageCommand}" />
+                    <Button Content="Info" Command="{Binding ShowAboutCommand}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <ScrollViewer Grid.Row="1">
+            <StackPanel Margin="28,22" Spacing="14">
+
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Classes="heading" Text="Gesicherte Ordner" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" Classes="accent" Content="+  Ordner hinzufügen"
+                            Command="{Binding AddFolderCommand}" />
+                </Grid>
+
+                <!-- cloud storage that is set up on this computer and not backed up yet -->
+                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasAvailableCloudFolders}">
+                    <TextBlock Classes="subtle" Text="Cloud-Speicher sichern:" VerticalAlignment="Center" />
+                    <ItemsControl ItemsSource="{Binding AvailableCloudFolders}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="8" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="core:CloudFolder">
+                                <Button Content="{Binding Name, StringFormat='+  {0}'}"
+                                        Command="{Binding #Root.((vm:DashboardViewModel)DataContext).AddCloudFolderCommand}"
+                                        CommandParameter="{Binding}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <Border Classes="card" IsVisible="{Binding HasNoFolders}">
+                    <StackPanel Spacing="6">
+                        <TextBlock FontWeight="Medium" Text="Noch wird nichts gesichert." />
+                        <TextBlock Classes="subtle"
+                                   Text="Wähle einen Ordner aus, zum Beispiel deine Dokumente. Er wird sofort gesichert und danach automatisch jede Stunde im Hintergrund." />
+                    </StackPanel>
+                </Border>
+
+                <ItemsControl ItemsSource="{Binding Folders}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Spacing="10" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:FolderItemViewModel">
+                            <Border Classes="card">
+                                <StackPanel Spacing="10">
+                                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                        <StackPanel>
+                                            <TextBlock FontSize="15" FontWeight="SemiBold" Text="{Binding Name}" />
+                                            <TextBlock Classes="subtle" Text="{Binding Path}" TextWrapping="NoWrap"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Content="Jetzt sichern" VerticalAlignment="Center"
+                                                Command="{Binding BackupNowCommand}" IsVisible="{Binding IsIdle}" />
+                                        <Button Grid.Column="1" Content="Abbrechen" VerticalAlignment="Center"
+                                                Command="{Binding CancelCommand}" IsVisible="{Binding IsRunning}" />
+                                        <Button Grid.Column="2" Content="Entfernen" VerticalAlignment="Center"
+                                                Command="{Binding RemoveCommand}" />
+                                    </Grid>
+
+                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                        <ComboBox ItemsSource="{Binding ScheduleOptions}"
+                                                  SelectedIndex="{Binding ScheduleIndex}" MinWidth="230" />
+                                        <TimePicker SelectedTime="{Binding DailyTime}" ClockIdentifier="24HourClock"
+                                                    MinuteIncrement="5" IsVisible="{Binding IsDaily}" />
+                                    </StackPanel>
+
+                                    <TextBlock Classes="subtle" Text="{Binding CloudHint}"
+                                               IsVisible="{Binding IsCloudFolder}" />
+
+                                    <StackPanel IsVisible="{Binding IsRunning}" Spacing="4">
+                                        <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressPercent}" />
+                                        <TextBlock Classes="subtle" Text="{Binding ProgressText}" />
+                                    </StackPanel>
+
+                                    <Panel IsVisible="{Binding IsIdle}">
+                                        <TextBlock Classes="subtle" Text="{Binding StatusText}"
+                                                   IsVisible="{Binding !HasProblem}" />
+                                        <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource ProblemTextBrush}"
+                                                   IsVisible="{Binding HasProblem}" />
+                                    </Panel>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Classes="heading" Text="Auf meine Sicherungen zugreifen" Margin="0,12,0,0" />
+
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                    <Border Classes="card">
+                        <StackPanel Spacing="8">
+                            <TextBlock FontSize="15" FontWeight="SemiBold" Text="Als Laufwerk öffnen" />
+                            <TextBlock Classes="subtle"
+                                       Text="Zeigt alle gesicherten Stände wie eine Festplatte im Explorer. Du kannst Dateien ansehen und herauskopieren. Das Laufwerk ist schreibgeschützt, das Backup kann dabei nicht verändert werden." />
+                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0"
+                                        IsVisible="{Binding IsNotMounted}">
+                                <Button Classes="accent" Content="Laufwerk öffnen"
+                                        Command="{Binding MountCommand}" IsEnabled="{Binding CanMount}" />
+                                <ProgressBar IsIndeterminate="True" Width="90" VerticalAlignment="Center"
+                                             IsVisible="{Binding IsMounting}" />
+                            </StackPanel>
+                            <StackPanel Spacing="8" Margin="0,4,0,0" IsVisible="{Binding IsMounted}">
+                                <TextBlock Text="{Binding MountText}" FontWeight="Medium"
+                                           Foreground="{DynamicResource SuccessTextBrush}" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Content="Im Explorer anzeigen" Command="{Binding ShowDriveCommand}" />
+                                    <Button Content="Trennen" Command="{Binding UnmountCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Column="1" Classes="card">
+                        <StackPanel Spacing="8">
+                            <TextBlock FontSize="15" FontWeight="SemiBold" Text="Ordner wiederherstellen" />
+                            <TextBlock Classes="subtle"
+                                       Text="Holt einen ganzen Ordner aus einem früheren Stand zurück, zum Beispiel nach einem Festplattenschaden oder auf einen neuen Rechner." />
+                            <Button Content="Wiederherstellen …" Margin="0,4,0,0" Command="{Binding RestoreCommand}" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- status line -->
+        <Border Grid.Row="2" Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0" Padding="28,9">
+            <TextBlock Classes="subtle" Text="{Binding StatusLine}" MaxLines="3" />
+        </Border>
+    </Grid>
+</UserControl>

@@ -1,0 +1,58 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ImagepixelBackup.App.ViewModels"
+             x:Class="ImagepixelBackup.App.Views.RestoreView"
+             x:DataType="vm:RestoreViewModel">
+
+    <Grid RowDefinitions="Auto,*,Auto" Margin="28,22" RowSpacing="14">
+
+        <StackPanel Spacing="6">
+            <Button Content="←  Zurück zur Übersicht" Command="{Binding BackCommand}" />
+            <TextBlock Classes="title" Text="Ordner wiederherstellen" Margin="0,8,0,0" />
+            <TextBlock Classes="subtle"
+                       Text="Wähle den Stand aus, den du zurückholen möchtest. Nur einzelne Dateien nötig? Dann öffne das Backup in der Übersicht als Laufwerk und kopiere sie heraus." />
+        </StackPanel>
+
+        <Border Grid.Row="1" Classes="card" Padding="6">
+            <Panel>
+                <ListBox ItemsSource="{Binding Snapshots}" SelectedItem="{Binding SelectedSnapshot}"
+                         Background="Transparent">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:SnapshotItemViewModel">
+                            <Grid ColumnDefinitions="190,*,Auto" ColumnSpacing="12">
+                                <TextBlock Text="{Binding Time}" />
+                                <TextBlock Grid.Column="1" Text="{Binding FolderName}" FontWeight="Medium"
+                                           TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Column="2" Classes="subtle" Text="{Binding Details}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <ProgressBar IsIndeterminate="True" Width="160" IsVisible="{Binding IsLoading}"
+                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Panel>
+        </Border>
+
+        <StackPanel Grid.Row="2" Spacing="10">
+            <TextBlock FontWeight="Medium" Text="Wohin soll wiederhergestellt werden?" />
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                <TextBox Text="{Binding TargetFolder}" PlaceholderText="z. B. C:\Wiederhergestellt" />
+                <Button Grid.Column="1" Content="Auswählen …" Command="{Binding BrowseCommand}" />
+                <Button Grid.Column="2" Classes="accent" Content="Wiederherstellen"
+                        Command="{Binding RestoreCommand}" IsEnabled="{Binding CanRestore}" />
+            </Grid>
+
+            <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressPercent}" IsVisible="{Binding IsBusy}" />
+
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <Panel VerticalAlignment="Center">
+                    <TextBlock Classes="subtle" Text="{Binding Message}" IsVisible="{Binding !HasProblem}" />
+                    <TextBlock Text="{Binding Message}" TextWrapping="Wrap" IsVisible="{Binding HasProblem}"
+                               Foreground="{DynamicResource ProblemTextBrush}" />
+                </Panel>
+                <Button Grid.Column="1" Content="Ordner öffnen" Command="{Binding OpenTargetCommand}"
+                        IsVisible="{Binding IsDone}" />
+            </Grid>
+        </StackPanel>
+    </Grid>
+</UserControl>

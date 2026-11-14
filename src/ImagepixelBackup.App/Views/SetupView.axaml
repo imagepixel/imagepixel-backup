@@ -1,0 +1,169 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ImagepixelBackup.App.ViewModels"
+             xmlns:core="using:ImagepixelBackup.Core"
+             xmlns:local="using:ImagepixelBackup.App"
+             x:Class="ImagepixelBackup.App.Views.SetupView"
+             x:DataType="vm:SetupViewModel"
+             x:Name="Root">
+
+    <ScrollViewer>
+        <StackPanel MaxWidth="680" Margin="32,28" Spacing="16">
+
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                <Image Source="/Assets/app-icon.png" Width="56" Height="56" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Classes="title" Text="Willkommen bei Imagepixel Backup" />
+                    <TextBlock Classes="subtle" Text="In drei Schritten ist dein Backup eingerichtet." />
+                </StackPanel>
+                <Button Grid.Column="2" Content="Info" VerticalAlignment="Center" Command="{Binding ShowAboutCommand}" />
+            </Grid>
+
+            <!-- step 1: what -->
+            <Border Classes="card">
+                <StackPanel IsEnabled="{Binding CanEdit}" Spacing="10">
+                    <TextBlock Classes="heading" Text="1. Was möchtest du sichern?" />
+
+                    <ItemsControl ItemsSource="{Binding Sources}" IsVisible="{Binding HasSources}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Spacing="6" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                                <Border Background="{DynamicResource PageBackgroundBrush}" CornerRadius="6" Padding="12,6">
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                        <TextBlock Text="{Binding}" VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <Button Grid.Column="1" Content="Entfernen"
+                                                Command="{Binding #Root.((vm:SetupViewModel)DataContext).RemoveSourceCommand}"
+                                                CommandParameter="{Binding}" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Classes="subtle" IsVisible="{Binding ExistingBackupOnly}"
+                               Text="Du greifst nur auf ein vorhandenes Backup zu. Ordner zum Sichern kannst du später jederzeit hinzufügen." />
+
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Button Classes="accent" Content="+  Ordner auswählen" Padding="20,9"
+                                Command="{Binding AddSourceCommand}" />
+                        <Button Content="Ich möchte nur auf ein vorhandenes Backup zugreifen"
+                                Command="{Binding UseExistingBackupCommand}" IsVisible="{Binding NeedsSource}" />
+                    </StackPanel>
+
+                    <!-- cloud storage that is set up on this computer -->
+                    <StackPanel IsVisible="{Binding HasCloudFolders}" Spacing="6">
+                        <TextBlock Classes="subtle"
+                                   Text="Oder einen Cloud-Speicher sichern, der auf diesem Rechner eingerichtet ist:" />
+                        <ItemsControl ItemsSource="{Binding CloudFolders}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="core:CloudFolder">
+                                    <Button Content="{Binding Name, StringFormat='+  {0}'}" Margin="0,0,8,6"
+                                            Command="{Binding #Root.((vm:SetupViewModel)DataContext).AddCloudSourceCommand}"
+                                            CommandParameter="{Binding}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <TextBlock Classes="subtle" IsVisible="{Binding HasCloudSource}"
+                               Text="{x:Static local:Texts.CloudHint}" />
+                </StackPanel>
+            </Border>
+
+            <!-- step 2: where -->
+            <Border Classes="card" IsEnabled="{Binding CanChooseDestination}"
+                    Opacity="{Binding CanChooseDestination, Converter={x:Static vm:Converters.EnabledOpacity}}">
+                <StackPanel IsEnabled="{Binding CanEdit}">
+                    <TextBlock Classes="heading" Text="2. Wohin soll gesichert werden?" />
+
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10" Margin="0,12,0,0">
+                        <Button Classes="tile" Classes.selected="{Binding IsImagepixel}"
+                                Command="{Binding ChooseKindCommand}" CommandParameter="ImagepixelStorage">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                <StackPanel Spacing="4">
+                                    <TextBlock FontWeight="SemiBold" FontSize="15" Text="Imagepixel Storage" />
+                                    <TextBlock Classes="subtle"
+                                               Text="Sicherer Online-Speicher, mit den Zugangsdaten von Imagepixel" />
+                                </StackPanel>
+                                <Border Grid.Column="1" Classes="badge" VerticalAlignment="Top">
+                                    <TextBlock Text="Empfohlen" />
+                                </Border>
+                            </Grid>
+                        </Button>
+                        <Button Grid.Column="1" Classes="tile" Classes.selected="{Binding IsLocal}"
+                                Command="{Binding ChooseKindCommand}" CommandParameter="LocalFolder">
+                            <StackPanel Spacing="4">
+                                <TextBlock FontWeight="SemiBold" FontSize="15" Text="USB-Festplatte" />
+                                <TextBlock Classes="subtle" Text="Externe Festplatte, Netzlaufwerk oder Ordner" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+
+                    <!-- Imagepixel Storage: a setup code fills in everything at once -->
+                    <StackPanel IsVisible="{Binding IsImagepixel}">
+                        <TextBlock Classes="label" Text="Einrichtungscode (falls du einen bekommen hast)" />
+                        <TextBox Text="{Binding SetupCodeText}" PlaceholderText="IPB1-…" />
+                        <TextBlock Classes="label" Text="Bucket-Name" />
+                        <TextBox Text="{Binding Bucket}" />
+                        <TextBlock Classes="label" Text="Zugangsschlüssel" />
+                        <TextBox Text="{Binding AccessKeyId}" />
+                        <TextBlock Classes="label" Text="Geheimer Schlüssel" />
+                        <TextBox Text="{Binding SecretAccessKey}" PasswordChar="●" />
+                    </StackPanel>
+
+                    <StackPanel IsVisible="{Binding IsLocal}">
+                        <TextBlock Classes="label" Text="Ordner für das Backup" />
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <TextBox Text="{Binding LocalPath}" PlaceholderText="z. B. E:\Backup" />
+                            <Button Grid.Column="1" Content="Auswählen …" Command="{Binding BrowseCommand}" />
+                        </Grid>
+                        <Border IsVisible="{Binding HasDestinationHint}" Margin="0,10,0,0" CornerRadius="6"
+                                Padding="12,8" Background="{DynamicResource PageBackgroundBrush}">
+                            <TextBlock Text="{Binding DestinationHint}" TextWrapping="Wrap" />
+                        </Border>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- step 3: password -->
+            <Border Classes="card" IsVisible="{Binding CanChooseDestination}">
+                <StackPanel IsEnabled="{Binding CanEdit}">
+                    <TextBlock Classes="heading" Text="3. Passwort für dein Backup" />
+                    <TextBlock Classes="subtle" Margin="0,6,0,0"
+                               Text="Mit diesem Passwort werden deine Daten verschlüsselt, bevor sie deinen Rechner verlassen. Bewahre es gut auf: Ohne das Passwort kann niemand das Backup wiederherstellen – auch Imagepixel nicht." />
+
+                    <TextBlock Classes="label" Text="Passwort" />
+                    <TextBox Text="{Binding Password}" PasswordChar="●" />
+                    <TextBlock Classes="label" Text="Passwort wiederholen (nur bei einem neuen Backup nötig)" />
+                    <TextBox Text="{Binding PasswordRepeat}" PasswordChar="●" />
+                </StackPanel>
+            </Border>
+
+            <Border IsVisible="{Binding HasError}" Background="{DynamicResource ProblemBackgroundBrush}"
+                    CornerRadius="6" Padding="14,10">
+                <TextBlock Text="{Binding ErrorMessage}" Foreground="{DynamicResource ProblemTextBrush}"
+                           TextWrapping="Wrap" />
+            </Border>
+
+            <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding CanChooseDestination}">
+                <Button Classes="accent" Content="{Binding ConnectText}" Padding="28,9"
+                        Command="{Binding ConnectCommand}" IsEnabled="{Binding CanEdit}" />
+                <ProgressBar IsIndeterminate="True" Width="120" VerticalAlignment="Center"
+                             IsVisible="{Binding IsBusy}" />
+                <TextBlock Classes="subtle" VerticalAlignment="Center" Text="{Binding BusyText}"
+                           IsVisible="{Binding IsBusy}" />
+            </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

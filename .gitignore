@@ -1,6 +1,9 @@
 # build output and fetched sources
 /.build/
 /bin/
+/artifacts/
+[Bb]in/
+[Oo]bj/
 
 # editor settings
 .vs/

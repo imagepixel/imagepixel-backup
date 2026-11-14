@@ -1,0 +1,15 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ImagepixelBackup.App.ViewModels"
+        x:Class="ImagepixelBackup.App.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Icon="/Assets/app.ico"
+        Title="Imagepixel Backup"
+        Width="920" Height="700"
+        MinWidth="720" MinHeight="560"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource PageBackgroundBrush}">
+
+    <ContentControl Content="{Binding CurrentPage}" />
+
+</Window>
