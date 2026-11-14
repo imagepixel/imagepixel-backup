@@ -26,13 +26,15 @@ public static class BackupSchedule
                     local.Year, local.Month, local.Day,
                     folder.DailyAt.Hour, folder.DailyAt.Minute, 0, local.Offset);
 
-                // The run of today is still open if there was no attempt since its start time.
-                if (folder.LastAttempt is not { } attempt || attempt < today)
+                // The most recent time the backup should have run. A run that was missed,
+                // for example because the computer was off, is made up for.
+                var due = today <= local ? today : today.AddDays(-1);
+                if (folder.LastAttempt is not { } attempt || attempt < due)
                 {
-                    return today;
+                    return due;
                 }
 
-                return today.AddDays(1);
+                return due.AddDays(1);
 
             default:
                 return null;
