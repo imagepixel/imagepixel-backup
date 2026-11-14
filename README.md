@@ -90,8 +90,9 @@ any reason, the drive is unmounted and its lock in the repository is released.
 
 ## Contributing
 
-Pull requests are limited to collaborators of this repository. If you found a problem or
-have a suggestion, please open an issue.
+This repository does not take contributions from outside: pull requests are limited to
+collaborators and issues are turned off. You are free to use and adapt the code under the
+terms of the license.
 
 ## License
 
