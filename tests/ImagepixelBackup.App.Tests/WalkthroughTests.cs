@@ -23,9 +23,9 @@ public static class TestAppBuilder
 
 /// <summary>
 /// Walks through the application the way a customer would, without showing a window:
-/// choose what to back up and where to, restore it and open the backup as a drive.
-/// The tests run the real restic program against folders in the temp directory and
-/// save a picture of every screen to artifacts/screenshots.
+/// once to set up a backup, and once to get data back on a new computer. The tests
+/// run the real restic program against folders in the temp directory and save a
+/// picture of every screen to artifacts/screenshots.
 /// </summary>
 public sealed class WalkthroughTests : IDisposable
 {
@@ -40,6 +40,8 @@ public sealed class WalkthroughTests : IDisposable
     private string StorageFolder => Path.Combine(_root, "USB-Festplatte", "Backup");
 
     private string RestoreFolder => Path.Combine(_root, "Wiederhergestellt");
+
+    private static bool CanMount => OperatingSystem.IsWindows() && Directory.Exists(@"C:\Program Files (x86)\WinFsp");
 
     /// <summary>Stands in for the cloud storage a customer has set up on the computer.</summary>
     private CloudFolder[] CloudStorage =>
@@ -83,8 +85,17 @@ public sealed class WalkthroughTests : IDisposable
         main.OpenInFileManager = opened.Add;
         window.Show();
 
-        // --- step 1: what to back up ---------------------------------------------
+        // --- first of all: back up or restore ---------------------------------------
         var setup = Assert.IsType<SetupViewModel>(main.CurrentPage);
+        Assert.False(setup.HasMode);
+        Assert.False(setup.CanChooseDestination);
+        Capture(window, "00-start-auswahl");
+
+        setup.ChooseModeCommand.Execute("Backup");
+        Assert.True(setup.IsBackup);
+        Assert.Equal("2. Wohin soll gesichert werden?", setup.DestinationHeading);
+
+        // --- step 1: what to back up ---------------------------------------------
         Assert.False(setup.CanChooseDestination);
         Assert.True(setup.IsImagepixel);
 
@@ -126,7 +137,7 @@ public sealed class WalkthroughTests : IDisposable
         // the whole page: what comes from Imagepixel, and the password the customer chooses
         setup.ShowPassword = true;
         setup.Password = "Mein-eigenes-Passwort";
-        window.Height = 1420;
+        window.Height = 1560;
         Capture(window, "03b-einrichtung-komplett");
         window.Height = 700;
         setup.ShowPassword = false;
@@ -238,7 +249,7 @@ public sealed class WalkthroughTests : IDisposable
         Assert.Same(dashboard, main.CurrentPage);
 
         // --- drive -------------------------------------------------------------------
-        if (OperatingSystem.IsWindows() && Directory.Exists(@"C:\Program Files (x86)\WinFsp"))
+        if (CanMount)
         {
             await dashboard.MountCommand.ExecuteAsync(null);
             Assert.True(dashboard.IsMounted, dashboard.StatusLine);
@@ -267,41 +278,106 @@ public sealed class WalkthroughTests : IDisposable
     }
 
     [AvaloniaFact]
-    public async Task Existing_backup_can_be_opened_without_choosing_a_folder()
+    public async Task Customer_gets_the_data_back_on_a_new_computer()
     {
         var restic = ResticClient.FindRestic();
         Assert.SkipWhen(restic is null, "restic has not been built");
 
-        await new ResticClient(restic!, new RepositoryAccess(StorageFolder, Password)).InitAsync();
+        // the backup that was made on the old computer
+        var old = new ResticClient(restic!, new RepositoryAccess(StorageFolder, Password));
+        await old.InitAsync();
+        await old.BackupAsync(SourceFolder);
 
+        // the new computer: nothing has been set up
         var manager = new BackupManager(new ConfigStore(DataFolder), new MemorySecretStore(), restic!);
         var main = new MainViewModel(manager, CloudStorage);
         var window = new MainWindow { DataContext = main };
+        string? chosenFolder = null;
         var opened = new List<string>();
+        main.PickFolder = _ => Task.FromResult(chosenFolder);
         main.OpenInFileManager = opened.Add;
         window.Show();
 
+        // --- restoring is a choice of its own on the first screen ---------------------
         var setup = Assert.IsType<SetupViewModel>(main.CurrentPage);
-        setup.UseExistingBackupCommand.Execute(null);
+        setup.ChooseModeCommand.Execute("Restore");
+        Assert.True(setup.IsRestore);
         Assert.True(setup.CanChooseDestination);
-        Assert.Equal("Verbinden", setup.ConnectText);
+        Assert.Equal("1. Wo liegt dein Backup?", setup.DestinationHeading);
+        Assert.Equal("2. Dein Verschlüsselungs-Passwort", setup.PasswordHeading);
+        Assert.Equal("Backup öffnen", setup.ConnectText);
+        window.Height = 1100;
+        Capture(window, "20-wiederherstellen-start");
+        window.Height = 700;
 
         setup.ChooseKindCommand.Execute("LocalFolder");
-        setup.LocalPath = StorageFolder;
+        await setup.ConnectCommand.ExecuteAsync(null);
+        Assert.Contains("in dem dein Backup liegt", setup.ErrorMessage);
+
+        // a place without a backup is reported and not turned into a new backup
+        var empty = Path.Combine(_root, "Leer");
+        setup.LocalPath = empty;
+        setup.Password = Password;
+        await setup.ConnectCommand.ExecuteAsync(null);
+        Assert.Contains("kein Backup gefunden", setup.ErrorMessage);
+        Assert.False(Directory.Exists(empty));
+        Assert.False(manager.IsConnected);
+
+        chosenFolder = StorageFolder;
+        await setup.BrowseCommand.ExecuteAsync(null);
+        Assert.Equal(StorageFolder, setup.LocalPath);
+        Assert.False(setup.HasDestinationHint);
+
         setup.Password = "ein-anderes-passwort";
         await setup.ConnectCommand.ExecuteAsync(null);
-
-        Assert.Contains("das Passwort passt nicht", setup.ErrorMessage);
+        Assert.Contains("passt nicht zu diesem Backup", setup.ErrorMessage);
         Assert.False(manager.IsConnected);
         Assert.IsType<SetupViewModel>(main.CurrentPage);
+        window.Height = 900;
+        Capture(window, "21-wiederherstellen-falsches-passwort");
+        window.Height = 700;
 
-        // the right password connects without asking for it twice
+        // the right password is asked for once and leads straight to the saved states
         setup.Password = Password;
         await setup.ConnectCommand.ExecuteAsync(null);
         Assert.Null(setup.ErrorMessage);
+        Assert.True(manager.IsConnected);
 
+        var restore = Assert.IsType<RestoreViewModel>(main.CurrentPage);
+        await WaitUntilAsync(() => !restore.IsLoading);
+        Assert.False(restore.HasProblem, restore.Message);
+        var state = Assert.Single(restore.Snapshots);
+        Assert.Equal("Dokumente", state.FolderName);
+        Capture(window, "22-wiederherstellen-staende");
+
+        restore.SelectedSnapshot = state;
+        chosenFolder = RestoreFolder;
+        await restore.BrowseCommand.ExecuteAsync(null);
+        await restore.RestoreCommand.ExecuteAsync(null);
+        Assert.True(restore.IsDone, restore.Message);
+        Assert.Equal(
+            "Sehr geehrte Damen und Herren äöü",
+            File.ReadAllText(Path.Combine(RestoreFolder, "Dokumente", "Brief.txt")));
+        Assert.Equal(
+            File.ReadAllBytes(Path.Combine(SourceFolder, "Fotos.zip")),
+            File.ReadAllBytes(Path.Combine(RestoreFolder, "Dokumente", "Fotos.zip")));
+
+        // single files can be picked from a drive, opened right from this page
+        if (CanMount)
+        {
+            await restore.OpenAsDriveCommand.ExecuteAsync(null);
+            Assert.False(restore.HasProblem, restore.Message);
+            Assert.Contains("als Laufwerk", restore.Message);
+            var drive = Assert.Single(opened);
+            Assert.Single(Directory.GetDirectories(drive));
+            Capture(window, "23-wiederherstellen-laufwerk");
+        }
+
+        // --- from here the customer can go on to back up the new computer --------------
+        restore.BackCommand.Execute(null);
         var dashboard = Assert.IsType<DashboardViewModel>(main.CurrentPage);
         Assert.True(dashboard.HasNoFolders);
+        Assert.Equal(CanMount, dashboard.IsMounted);
         Assert.Equal(3, dashboard.AvailableCloudFolders.Count);
         Capture(window, "10-uebersicht-ohne-ordner");
 
@@ -309,6 +385,7 @@ public sealed class WalkthroughTests : IDisposable
         await dashboard.AddCloudFolderCommand.ExecuteAsync(CloudStorage[2]);
         var cloudFolder = Assert.Single(dashboard.Folders);
         Assert.Equal(CloudStorage[2].Path, cloudFolder.Path);
+        Assert.Equal("iCloud Drive", cloudFolder.Name);
         Assert.True(cloudFolder.IsCloudFolder);
         Assert.False(cloudFolder.HasProblem, cloudFolder.StatusText);
         Assert.NotNull(cloudFolder.Folder.LastSuccess);
@@ -324,11 +401,14 @@ public sealed class WalkthroughTests : IDisposable
         Assert.StartsWith("Version 0.", about.Version);
         Capture(window, "11-info");
         about.OpenLinkCommand.Execute(AboutViewModel.WinFspUrl);
-        Assert.Equal([AboutViewModel.WinFspUrl], opened);
+        Assert.Equal(AboutViewModel.WinFspUrl, opened.Last());
         about.BackCommand.Execute(null);
         Assert.Same(dashboard, main.CurrentPage);
 
+        // leaving the application unmounts the drive and releases the lock
         await main.ShutdownAsync();
+        Assert.Empty(Directory.GetFiles(Path.Combine(StorageFolder, "locks")));
+
         window.Close();
     }
 

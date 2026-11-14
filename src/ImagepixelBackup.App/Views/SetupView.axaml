@@ -14,13 +14,32 @@
                 <Image Source="/Assets/app-icon.png" Width="56" Height="56" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                     <TextBlock Classes="title" Text="Willkommen bei Imagepixel Backup" />
-                    <TextBlock Classes="subtle" Text="In drei Schritten ist dein Backup eingerichtet." />
+                    <TextBlock Classes="subtle" Text="{Binding Subtitle}" />
                 </StackPanel>
                 <Button Grid.Column="2" Content="Info" VerticalAlignment="Center" Command="{Binding ShowAboutCommand}" />
             </Grid>
 
-            <!-- step 1: what -->
-            <Border Classes="card">
+            <!-- first of all: back up or restore -->
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="12" IsEnabled="{Binding CanEdit}">
+                <Button Classes="tile" Classes.selected="{Binding IsBackup}" Padding="18,16"
+                        Command="{Binding ChooseModeCommand}" CommandParameter="Backup">
+                    <StackPanel Spacing="4">
+                        <TextBlock FontWeight="SemiBold" FontSize="17" Text="Daten sichern" />
+                        <TextBlock Classes="subtle" Text="Ich möchte Ordner sichern und ein Backup einrichten." />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="1" Classes="tile" Classes.selected="{Binding IsRestore}" Padding="18,16"
+                        Command="{Binding ChooseModeCommand}" CommandParameter="Restore">
+                    <StackPanel Spacing="4">
+                        <TextBlock FontWeight="SemiBold" FontSize="17" Text="Daten wiederherstellen" />
+                        <TextBlock Classes="subtle"
+                                   Text="Ich habe schon ein Backup und möchte an meine Daten, zum Beispiel auf einem neuen Rechner." />
+                    </StackPanel>
+                </Button>
+            </Grid>
+
+            <!-- backing up, step 1: what -->
+            <Border Classes="card" IsVisible="{Binding IsBackup}">
                 <StackPanel IsEnabled="{Binding CanEdit}" Spacing="10">
                     <TextBlock Classes="heading" Text="1. Was möchtest du sichern?" />
 
@@ -45,15 +64,8 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <TextBlock Classes="subtle" IsVisible="{Binding ExistingBackupOnly}"
-                               Text="Du greifst nur auf ein vorhandenes Backup zu. Ordner zum Sichern kannst du später jederzeit hinzufügen." />
-
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <Button Classes="accent" Content="+  Ordner auswählen" Padding="20,9"
-                                Command="{Binding AddSourceCommand}" />
-                        <Button Content="Ich möchte nur auf ein vorhandenes Backup zugreifen"
-                                Command="{Binding UseExistingBackupCommand}" IsVisible="{Binding NeedsSource}" />
-                    </StackPanel>
+                    <Button Classes="accent" Content="+  Ordner auswählen" Padding="20,9"
+                            Command="{Binding AddSourceCommand}" />
 
                     <!-- cloud storage that is set up on this computer -->
                     <StackPanel IsVisible="{Binding HasCloudFolders}" Spacing="6">
@@ -80,11 +92,11 @@
                 </StackPanel>
             </Border>
 
-            <!-- step 2: where -->
-            <Border Classes="card" IsEnabled="{Binding CanChooseDestination}"
+            <!-- where the backup goes to, or where it is -->
+            <Border Classes="card" IsVisible="{Binding HasMode}" IsEnabled="{Binding CanChooseDestination}"
                     Opacity="{Binding CanChooseDestination, Converter={x:Static vm:Converters.EnabledOpacity}}">
                 <StackPanel IsEnabled="{Binding CanEdit}">
-                    <TextBlock Classes="heading" Text="2. Wohin soll gesichert werden?" />
+                    <TextBlock Classes="heading" Text="{Binding DestinationHeading}" />
 
                     <Grid ColumnDefinitions="*,*" ColumnSpacing="10" Margin="0,12,0,0">
                         <Button Classes="tile" Classes.selected="{Binding IsImagepixel}"
@@ -95,7 +107,8 @@
                                     <TextBlock Classes="subtle"
                                                Text="Sicherer Online-Speicher, mit den Zugangsdaten von Imagepixel" />
                                 </StackPanel>
-                                <Border Grid.Column="1" Classes="badge" VerticalAlignment="Top">
+                                <Border Grid.Column="1" Classes="badge" VerticalAlignment="Top"
+                                        IsVisible="{Binding IsBackup}">
                                     <TextBlock Text="Empfohlen" />
                                 </Border>
                             </Grid>
@@ -133,44 +146,57 @@
                     </StackPanel>
 
                     <StackPanel IsVisible="{Binding ShowLocalFields}">
-                        <TextBlock Classes="label" Text="Ordner für das Backup" />
+                        <TextBlock Classes="label" Text="Ordner für das Backup" IsVisible="{Binding IsBackup}" />
+                        <TextBlock Classes="label" Text="Ordner, in dem dein Backup liegt" IsVisible="{Binding IsRestore}" />
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                             <TextBox Text="{Binding LocalPath}" PlaceholderText="z. B. E:\Backup" />
                             <Button Grid.Column="1" Content="Auswählen …" Command="{Binding BrowseCommand}" />
                         </Grid>
-                        <Border IsVisible="{Binding HasDestinationHint}" Margin="0,10,0,0" CornerRadius="6"
-                                Padding="12,8" Background="{DynamicResource PageBackgroundBrush}">
+                        <Border Classes="note" IsVisible="{Binding HasDestinationHint}" Margin="0,10,0,0">
                             <TextBlock Text="{Binding DestinationHint}" TextWrapping="Wrap" />
                         </Border>
                     </StackPanel>
                 </StackPanel>
             </Border>
 
-            <!-- step 3: password -->
+            <!-- the password -->
             <Border Classes="card" IsVisible="{Binding CanChooseDestination}">
                 <StackPanel IsEnabled="{Binding CanEdit}">
-                    <TextBlock Classes="heading" Text="3. Dein Verschlüsselungs-Passwort" />
+                    <TextBlock Classes="heading" Text="{Binding PasswordHeading}" />
 
-                    <Border Classes="note" Margin="0,12,0,0">
+                    <!-- backing up: the customer chooses the password now -->
+                    <StackPanel IsVisible="{Binding IsBackup}">
+                        <Border Classes="note" Margin="0,12,0,0">
+                            <StackPanel Spacing="3">
+                                <TextBlock FontWeight="SemiBold" Text="Dieses Passwort legst du selbst fest" />
+                                <TextBlock Classes="subtle"
+                                           Text="Du bekommst es nicht von Imagepixel, und Imagepixel erfährt es nie. Damit werden deine Daten auf deinem Rechner verschlüsselt, bevor sie ihn verlassen." />
+                            </StackPanel>
+                        </Border>
+                        <Border Classes="warning" Margin="0,8,0,0">
+                            <StackPanel Spacing="3">
+                                <TextBlock FontWeight="SemiBold" Text="Wichtig: Ohne dieses Passwort sind die Daten verloren" />
+                                <TextBlock TextWrapping="Wrap"
+                                           Text="Wenn du das Passwort verlierst, kommt niemand mehr an dein Backup – auch Imagepixel nicht. Es lässt sich nicht zurücksetzen. Schreib es auf und bewahre es sicher auf, zum Beispiel in einem Passwort-Manager." />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- restoring: the customer chose the password when the backup was set up -->
+                    <Border Classes="note" Margin="0,12,0,0" IsVisible="{Binding IsRestore}">
                         <StackPanel Spacing="3">
-                            <TextBlock FontWeight="SemiBold" Text="Dieses Passwort legst du selbst fest" />
+                            <TextBlock FontWeight="SemiBold" Text="Das Passwort, das du selbst festgelegt hast" />
                             <TextBlock Classes="subtle"
-                                       Text="Du bekommst es nicht von Imagepixel, und Imagepixel erfährt es nie. Damit werden deine Daten auf deinem Rechner verschlüsselt, bevor sie ihn verlassen." />
+                                       Text="Gib das Verschlüsselungs-Passwort ein, das du beim Einrichten deines Backups vergeben hast. Imagepixel kennt es nicht und kann es nicht zurücksetzen." />
                         </StackPanel>
                     </Border>
 
-                    <Border Classes="warning" Margin="0,8,0,0">
-                        <StackPanel Spacing="3">
-                            <TextBlock FontWeight="SemiBold" Text="Wichtig: Ohne dieses Passwort sind die Daten verloren" />
-                            <TextBlock TextWrapping="Wrap"
-                                       Text="Wenn du das Passwort verlierst, kommt niemand mehr an dein Backup – auch Imagepixel nicht. Es lässt sich nicht zurücksetzen. Schreib es auf und bewahre es sicher auf, zum Beispiel in einem Passwort-Manager." />
-                        </StackPanel>
-                    </Border>
-
-                    <TextBlock Classes="label" Text="Verschlüsselungs-Passwort (mindestens 8 Zeichen)" />
+                    <TextBlock Classes="label" Text="{Binding PasswordLabel}" />
                     <TextBox Text="{Binding Password}" PasswordChar="●" RevealPassword="{Binding ShowPassword}" />
-                    <TextBlock Classes="label" Text="Passwort wiederholen (nur bei einem neuen Backup nötig)" />
-                    <TextBox Text="{Binding PasswordRepeat}" PasswordChar="●" RevealPassword="{Binding ShowPassword}" />
+                    <StackPanel IsVisible="{Binding IsBackup}">
+                        <TextBlock Classes="label" Text="Passwort wiederholen (nur bei einem neuen Backup nötig)" />
+                        <TextBox Text="{Binding PasswordRepeat}" PasswordChar="●" RevealPassword="{Binding ShowPassword}" />
+                    </StackPanel>
                     <CheckBox Content="Passwort anzeigen" IsChecked="{Binding ShowPassword}" Margin="0,8,0,0" />
                 </StackPanel>
             </Border>

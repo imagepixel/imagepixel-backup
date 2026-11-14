@@ -10,9 +10,23 @@ using ImagepixelBackup.Core.Restic;
 
 namespace ImagepixelBackup.App.ViewModels;
 
+/// <summary>What the customer wants to do on the first screen.</summary>
+public enum SetupMode
+{
+    /// <summary>Nothing has been chosen yet.</summary>
+    None,
+
+    /// <summary>Set up a backup: choose what to back up, where to, and a password.</summary>
+    Backup,
+
+    /// <summary>Get data back from an existing backup, for example on a new computer.</summary>
+    Restore,
+}
+
 /// <summary>
-/// First start. The customer first chooses what to back up, then where to, and
-/// finally sets the password of the backup.
+/// First start. The customer chooses between backing up and restoring. Backing up asks
+/// what to back up, where to, and for a new password. Restoring asks where the backup
+/// is and for its password, and then shows the saved states.
 /// </summary>
 public partial class SetupViewModel : ViewModelBase
 {
@@ -36,6 +50,26 @@ public partial class SetupViewModel : ViewModelBase
         };
     }
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(
+        nameof(HasMode), nameof(IsBackup), nameof(IsRestore), nameof(Subtitle),
+        nameof(CanChooseDestination), nameof(ShowImagepixelFields), nameof(ShowLocalFields),
+        nameof(DestinationHeading), nameof(PasswordHeading), nameof(PasswordLabel), nameof(ConnectText))]
+    public partial SetupMode Mode { get; set; }
+
+    public bool HasMode => Mode != SetupMode.None;
+
+    public bool IsBackup => Mode == SetupMode.Backup;
+
+    public bool IsRestore => Mode == SetupMode.Restore;
+
+    public string Subtitle => Mode switch
+    {
+        SetupMode.Backup => "In drei Schritten ist dein Backup eingerichtet.",
+        SetupMode.Restore => "In zwei Schritten bist du wieder bei deinen Daten.",
+        _ => "Was möchtest du tun?",
+    };
+
     /// <summary>Cloud storage found on this computer, offered as a source with one click.</summary>
     public IReadOnlyList<CloudFolder> CloudFolders => _main.CloudFolders;
 
@@ -50,21 +84,22 @@ public partial class SetupViewModel : ViewModelBase
     public bool HasSources => Sources.Count > 0;
 
     /// <summary>
-    /// Set when the customer only wants to reach an existing backup, for example to
-    /// restore it on a new computer. No folder has to be chosen then.
+    /// The storage can be chosen once it is clear what is backed up. Restoring starts
+    /// with the storage, because that is where the backup is.
     /// </summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(
-        nameof(CanChooseDestination), nameof(NeedsSource), nameof(ConnectText),
-        nameof(ShowImagepixelFields), nameof(ShowLocalFields))]
-    public partial bool ExistingBackupOnly { get; set; }
+    public bool CanChooseDestination => IsRestore || (IsBackup && HasSources);
 
-    public bool NeedsSource => !ExistingBackupOnly;
+    public string DestinationHeading => IsRestore ? "1. Wo liegt dein Backup?" : "2. Wohin soll gesichert werden?";
 
-    /// <summary>The destination can be chosen once it is clear what is backed up.</summary>
-    public bool CanChooseDestination => HasSources || ExistingBackupOnly;
+    public string PasswordHeading => IsRestore ? "2. Dein Verschlüsselungs-Passwort" : "3. Dein Verschlüsselungs-Passwort";
 
-    /// <summary>Where the backup goes. Imagepixel Storage is the recommended choice and preselected.</summary>
+    public string PasswordLabel => IsRestore
+        ? "Verschlüsselungs-Passwort"
+        : $"Verschlüsselungs-Passwort (mindestens {MinimumPasswordLength} Zeichen)";
+
+    public string ConnectText => IsRestore ? "Backup öffnen" : "Backup starten";
+
+    /// <summary>Where the backup is stored. Imagepixel Storage is the recommended choice and preselected.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(
         nameof(IsImagepixel), nameof(IsLocal), nameof(DestinationHint), nameof(HasDestinationHint),
@@ -75,7 +110,7 @@ public partial class SetupViewModel : ViewModelBase
 
     public bool IsLocal => Kind == StorageKind.LocalFolder;
 
-    // The fields of a destination only appear once the customer has reached that step.
+    // The fields of a storage only appear once the customer has reached that step.
     public bool ShowImagepixelFields => IsImagepixel && CanChooseDestination;
 
     public bool ShowLocalFields => IsLocal && CanChooseDestination;
@@ -83,8 +118,6 @@ public partial class SetupViewModel : ViewModelBase
     /// <summary>Shows the password while typing. It cannot be reset later, so typos matter.</summary>
     [ObservableProperty]
     public partial bool ShowPassword { get; set; }
-
-    public string ConnectText => ExistingBackupOnly ? "Verbinden" : "Backup starten";
 
     [ObservableProperty]
     public partial string SetupCodeText { get; set; } = "";
@@ -104,10 +137,10 @@ public partial class SetupViewModel : ViewModelBase
 
     /// <summary>
     /// Explains what it means to store the backup in the folder of a cloud service.
-    /// Null when the chosen folder is an ordinary one.
+    /// Null when the chosen folder is an ordinary one, and when restoring.
     /// </summary>
     public string? DestinationHint =>
-        IsLocal && !string.IsNullOrWhiteSpace(LocalPath) && CloudOf(LocalPath) is { } cloud
+        IsBackup && IsLocal && !string.IsNullOrWhiteSpace(LocalPath) && CloudOf(LocalPath) is { } cloud
             ? Texts.CloudDestination(cloud.Name)
             : null;
 
@@ -134,6 +167,12 @@ public partial class SetupViewModel : ViewModelBase
     [ObservableProperty]
     public partial string BusyText { get; set; } = "";
 
+    partial void OnModeChanged(SetupMode value)
+    {
+        OnPropertyChanged(nameof(DestinationHint));
+        OnPropertyChanged(nameof(HasDestinationHint));
+    }
+
     // A pasted setup code fills in the fields the customer would otherwise type.
     partial void OnSetupCodeTextChanged(string value)
     {
@@ -145,6 +184,13 @@ public partial class SetupViewModel : ViewModelBase
             _region = code.Region;
             ErrorMessage = null;
         }
+    }
+
+    [RelayCommand]
+    private void ChooseMode(string mode)
+    {
+        Mode = Enum.Parse<SetupMode>(mode);
+        ErrorMessage = null;
     }
 
     [RelayCommand]
@@ -160,7 +206,6 @@ public partial class SetupViewModel : ViewModelBase
             Sources.Add(path);
         }
 
-        ExistingBackupOnly = false;
         ErrorMessage = null;
     }
 
@@ -172,20 +217,11 @@ public partial class SetupViewModel : ViewModelBase
             Sources.Add(folder.Path);
         }
 
-        ExistingBackupOnly = false;
         ErrorMessage = null;
     }
 
     [RelayCommand]
     private void RemoveSource(string path) => Sources.Remove(path);
-
-    [RelayCommand]
-    private void UseExistingBackup()
-    {
-        Sources.Clear();
-        ExistingBackupOnly = true;
-        ErrorMessage = null;
-    }
 
     [RelayCommand]
     private void ShowAbout() => _main.ShowAbout();
@@ -200,7 +236,8 @@ public partial class SetupViewModel : ViewModelBase
     [RelayCommand]
     private async Task BrowseAsync()
     {
-        if (await _main.PickFolder("Ordner für das Backup auswählen") is { } path)
+        var title = IsRestore ? "Ordner auswählen, in dem dein Backup liegt" : "Ordner für das Backup auswählen";
+        if (await _main.PickFolder(title) is { } path)
         {
             LocalPath = path;
         }
@@ -226,12 +263,19 @@ public partial class SetupViewModel : ViewModelBase
         var secret = IsImagepixel ? SecretAccessKey.Trim() : null;
 
         IsBusy = true;
-        BusyText = "Verbindung wird geprüft …";
+        BusyText = IsRestore ? "Backup wird geöffnet …" : "Verbindung wird geprüft …";
         try
         {
             var state = await _manager.ConnectAsync(storage, Password, secret, createIfMissing: false);
             if (state == RepositoryState.NotFound)
             {
+                // Restoring never creates anything: an empty place means the data is elsewhere.
+                if (IsRestore)
+                {
+                    ErrorMessage = "An diesem Ort wurde kein Backup gefunden. Bitte prüfe die Angaben. Wenn du noch kein Backup hast, wähle oben „Daten sichern“.";
+                    return;
+                }
+
                 // A new backup is about to be created. Its password cannot be recovered,
                 // so it has to be typed twice.
                 if (Password != PasswordRepeat)
@@ -246,7 +290,16 @@ public partial class SetupViewModel : ViewModelBase
 
             if (state == RepositoryState.WrongPassword)
             {
-                ErrorMessage = "An diesem Ort liegt bereits ein Backup, aber das Passwort passt nicht dazu.";
+                ErrorMessage = IsRestore
+                    ? "Das Verschlüsselungs-Passwort passt nicht zu diesem Backup."
+                    : "An diesem Ort liegt bereits ein Backup, aber das Passwort passt nicht dazu.";
+                return;
+            }
+
+            if (IsRestore)
+            {
+                // straight to the saved states, which is what the customer came for
+                _main.ShowRestore();
                 return;
             }
 
@@ -283,6 +336,11 @@ public partial class SetupViewModel : ViewModelBase
 
     private string? Validate()
     {
+        if (!HasMode)
+        {
+            return "Bitte wähle zuerst aus, was du tun möchtest.";
+        }
+
         if (!CanChooseDestination)
         {
             return "Bitte wähle zuerst aus, was gesichert werden soll.";
@@ -299,15 +357,23 @@ public partial class SetupViewModel : ViewModelBase
         {
             if (string.IsNullOrWhiteSpace(LocalPath))
             {
-                return "Bitte wähle einen Ordner für das Backup aus.";
+                return IsRestore
+                    ? "Bitte wähle den Ordner aus, in dem dein Backup liegt."
+                    : "Bitte wähle einen Ordner für das Backup aus.";
             }
 
             // the backup must not lie inside a folder it backs up, nor around one
             var folders = Sources.Concat(_manager.Config.Folders.Select(f => f.Path));
-            if (folders.FirstOrDefault(folder => FolderRules.Overlap(folder, LocalPath)) is { } overlapping)
+            if (IsBackup && folders.FirstOrDefault(folder => FolderRules.Overlap(folder, LocalPath)) is { } overlapping)
             {
                 return Texts.Overlap(overlapping, LocalPath.Trim());
             }
+        }
+
+        if (IsRestore)
+        {
+            // an existing backup may have any password, so only an empty one is rejected
+            return Password.Length == 0 ? "Bitte gib dein Verschlüsselungs-Passwort ein." : null;
         }
 
         if (Password.Length < MinimumPasswordLength)

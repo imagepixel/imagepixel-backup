@@ -148,4 +148,21 @@ public partial class RestoreViewModel : ViewModelBase
 
     [RelayCommand]
     private void OpenTarget() => _main.OpenInFileManager(TargetFolder.Trim());
+
+    /// <summary>
+    /// Opens the backup as a read-only drive, for someone who only needs a few files
+    /// and wants to pick them in the file manager.
+    /// </summary>
+    [RelayCommand]
+    private async Task OpenAsDriveAsync()
+    {
+        var dashboard = _main.Dashboard;
+        Message = "Laufwerk wird geöffnet …";
+        HasProblem = false;
+
+        await dashboard.MountCommand.ExecuteAsync(null);
+
+        HasProblem = !dashboard.IsMounted;
+        Message = dashboard.StatusLine;
+    }
 }
