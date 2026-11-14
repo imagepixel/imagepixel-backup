@@ -1,0 +1,9 @@
+# build output and fetched sources
+/.build/
+/bin/
+
+# editor settings
+.vs/
+.vscode/
+.idea/
+*.user
