@@ -15,12 +15,14 @@ namespace ImagepixelBackup.App.ViewModels;
 public partial class DashboardViewModel : ViewModelBase
 {
     private static readonly TimeSpan SchedulerInterval = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan StorageStatusInterval = TimeSpan.FromMinutes(30);
 
     private readonly BackupManager _manager;
     private readonly MainViewModel _main;
     private readonly DispatcherTimer _scheduler;
     private MountSession? _mount;
     private bool _schedulerBusy;
+    private DateTimeOffset _storageStatusLoaded;
 
     public DashboardViewModel(BackupManager manager, MainViewModel main)
     {
@@ -40,8 +42,62 @@ public partial class DashboardViewModel : ViewModelBase
         RefreshAvailableCloudFolders();
 
         _scheduler = new DispatcherTimer { Interval = SchedulerInterval };
-        _scheduler.Tick += async (_, _) => await RunDueBackupsAsync();
+        _scheduler.Tick += async (_, _) =>
+        {
+            await RunDueBackupsAsync();
+            if (DateTimeOffset.Now - _storageStatusLoaded >= StorageStatusInterval)
+            {
+                await RefreshStorageStatusAsync();
+            }
+        };
         _scheduler.Start();
+
+        _ = RefreshStorageStatusAsync();
+    }
+
+    /// <summary>How much storage is booked and used, or null if there are no figures.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(
+        nameof(HasStorageStatus), nameof(StoragePercent), nameof(StorageText), nameof(StorageDetail),
+        nameof(StorageWarning), nameof(HasStorageWarning))]
+    public partial StorageStatus? StorageStatus { get; set; }
+
+    public bool HasStorageStatus => StorageStatus is not null;
+
+    public double StoragePercent => Math.Min(100, (StorageStatus?.Fraction ?? 0) * 100);
+
+    public string StorageText => StorageStatus is { } status
+        ? $"{Texts.Bytes(status.UsedBytes)} von {Texts.Bytes(status.BookedBytes)} belegt ({Texts.Percent(status.Fraction)})"
+        : "";
+
+    public string StorageDetail => StorageStatus is { } status
+        ? "Stand: " + Texts.Day(status.MeasuredAt, DateTimeOffset.Now)
+        : "";
+
+    /// <summary>The warning shown from 80 % on. Backups keep running when the storage is full.</summary>
+    public string? StorageWarning => StorageStatus switch
+    {
+        { IsFull: true } status =>
+            $"Dein gebuchter Speicher ist voll ({Texts.Percent(status.Fraction)}). Die Sicherungen laufen weiter. Imagepixel meldet sich bei dir wegen der nächsten Größe.",
+        { IsWarning: true } status =>
+            $"Dein Speicher ist zu {Texts.Percent(status.Fraction)} belegt. Die Sicherungen laufen weiter. Imagepixel meldet sich bei dir wegen der nächsten Größe.",
+        _ => null,
+    };
+
+    public bool HasStorageWarning => StorageWarning is not null;
+
+    /// <summary>Asks again how much storage is booked and used. Keeps the last figures if that fails.</summary>
+    public async Task RefreshStorageStatusAsync()
+    {
+        _storageStatusLoaded = DateTimeOffset.Now;
+        try
+        {
+            StorageStatus = await _main.LoadStorageStatus();
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            // the figures are a convenience, a failure must not disturb the backups
+        }
     }
 
     public ObservableCollection<FolderItemViewModel> Folders { get; } = [];

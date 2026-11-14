@@ -9,13 +9,31 @@ namespace ImagepixelBackup.Core;
 /// Imagepixel Storage bucket. It is meant to be copied and pasted, not to be secret
 /// on its own terms: it contains the access key in readable form.
 /// </summary>
-public sealed record SetupCode(string Bucket, string AccessKeyId, string SecretAccessKey, string Region)
+/// <param name="Bucket">The bucket of the customer.</param>
+/// <param name="AccessKeyId">The access key of the customer.</param>
+/// <param name="SecretAccessKey">The secret that belongs to the access key.</param>
+/// <param name="Region">The region the bucket is in.</param>
+/// <param name="ApiUrl">The address of the service that tells how much storage is booked and used, if there is one.</param>
+/// <param name="ApiToken">The token to send to that service.</param>
+public sealed record SetupCode(
+    string Bucket,
+    string AccessKeyId,
+    string SecretAccessKey,
+    string Region,
+    string? ApiUrl = null,
+    string? ApiToken = null)
 {
     private const string Prefix = "IPB1-";
 
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    };
+
     public string Encode()
     {
-        var json = JsonSerializer.SerializeToUtf8Bytes(new Payload(Bucket, AccessKeyId, SecretAccessKey, Region));
+        var json = JsonSerializer.SerializeToUtf8Bytes(
+            new Payload(Bucket, AccessKeyId, SecretAccessKey, Region, ApiUrl, ApiToken), JsonOptions);
         return Prefix + Convert.ToBase64String(json).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     }
 
@@ -45,7 +63,9 @@ public sealed record SetupCode(string Bucket, string AccessKeyId, string SecretA
                 payload.Bucket,
                 payload.AccessKeyId,
                 payload.SecretAccessKey,
-                string.IsNullOrWhiteSpace(payload.Region) ? ImagepixelStorage.DefaultRegion : payload.Region);
+                string.IsNullOrWhiteSpace(payload.Region) ? ImagepixelStorage.DefaultRegion : payload.Region,
+                string.IsNullOrWhiteSpace(payload.ApiUrl) ? null : payload.ApiUrl,
+                string.IsNullOrWhiteSpace(payload.ApiToken) ? null : payload.ApiToken);
             return true;
         }
         catch (Exception e) when (e is FormatException or JsonException)
@@ -58,5 +78,7 @@ public sealed record SetupCode(string Bucket, string AccessKeyId, string SecretA
         [property: JsonPropertyName("b")] string Bucket,
         [property: JsonPropertyName("k")] string AccessKeyId,
         [property: JsonPropertyName("s")] string SecretAccessKey,
-        [property: JsonPropertyName("r")] string? Region);
+        [property: JsonPropertyName("r")] string? Region,
+        [property: JsonPropertyName("a")] string? ApiUrl = null,
+        [property: JsonPropertyName("t")] string? ApiToken = null);
 }

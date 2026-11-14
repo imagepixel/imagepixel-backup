@@ -7,4 +7,7 @@
     <Project Path="tests/ImagepixelBackup.App.Tests/ImagepixelBackup.App.Tests.csproj" />
     <Project Path="tests/ImagepixelBackup.Core.Tests/ImagepixelBackup.Core.Tests.csproj" />
   </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/ImagepixelBackup.Admin/ImagepixelBackup.Admin.csproj" />
+  </Folder>
 </Solution>

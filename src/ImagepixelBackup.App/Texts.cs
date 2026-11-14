@@ -33,6 +33,10 @@ public static class Texts
             : string.Create(German, $"{value:0.#} {units[unit]}");
     }
 
+    /// <summary>Formats a share as a whole percentage, for example "86 %".</summary>
+    public static string Percent(double fraction) =>
+        string.Create(German, $"{Math.Round(fraction * 100):0} %");
+
     /// <summary>Formats a point in time relative to today, for example "heute, 15:30".</summary>
     public static string Day(DateTimeOffset time, DateTimeOffset now)
     {

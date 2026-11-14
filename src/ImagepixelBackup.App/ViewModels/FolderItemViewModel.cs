@@ -160,6 +160,7 @@ public partial class FolderItemViewModel : ViewModelBase
                 ? $" {summary.FilesFreedUp} Dateien liegen wieder nur online."
                 : "";
             _dashboard.StatusLine = $"„{Name}“ gesichert: {summary.FilesNew + summary.FilesChanged} neue oder geänderte Dateien, {Texts.Bytes(summary.BytesUploaded)} übertragen.{freed}";
+            _ = _dashboard.RefreshStorageStatusAsync();
         }
         catch (OperationCanceledException)
         {

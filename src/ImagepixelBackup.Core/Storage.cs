@@ -42,6 +42,12 @@ public sealed class StorageSettings
     /// <summary>Folder that holds the repository, for <see cref="StorageKind.LocalFolder"/>.</summary>
     public string LocalPath { get; set; } = "";
 
+    /// <summary>
+    /// Address of the service of Imagepixel that tells how much storage is booked and
+    /// used. Empty as long as the application has not been told about one.
+    /// </summary>
+    public string ApiUrl { get; set; } = "";
+
     public bool IsS3 => Kind == StorageKind.ImagepixelStorage;
 
     /// <summary>The repository location in the syntax restic expects.</summary>

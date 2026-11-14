@@ -195,6 +195,40 @@ public sealed class WalkthroughTests : IDisposable
         Assert.Contains("gesichert: 3 neue oder geänderte Dateien", dashboard.StatusLine);
         Capture(window, "06-uebersicht-ordner-gesichert");
 
+        // --- storage figures ---------------------------------------------------------
+        // a local folder has no booked size, so nothing is shown
+        Assert.False(dashboard.HasStorageStatus);
+
+        // with Imagepixel Storage the overview shows how much is booked and used
+        const long gb = 1024L * 1024 * 1024;
+        StorageStatus? figures = new(100 * gb, 62 * gb, DateTimeOffset.Now.AddHours(-3), StorageStatusSource.Api);
+        main.LoadStorageStatus = () => Task.FromResult<StorageStatus?>(figures);
+        await dashboard.RefreshStorageStatusAsync();
+        Assert.True(dashboard.HasStorageStatus);
+        Assert.Equal("62 GB von 100 GB belegt (62 %)", dashboard.StorageText);
+        Assert.False(dashboard.HasStorageWarning);
+        Capture(window, "06b-uebersicht-speicher");
+
+        // from 80 % on the customer is warned; backups keep running
+        figures = figures with { UsedBytes = 86 * gb };
+        await dashboard.RefreshStorageStatusAsync();
+        Assert.Contains("zu 86 % belegt", dashboard.StorageWarning);
+        Capture(window, "06c-uebersicht-speicher-warnung");
+
+        figures = figures with { UsedBytes = 104 * gb };
+        await dashboard.RefreshStorageStatusAsync();
+        Assert.Contains("voll (104 %)", dashboard.StorageWarning);
+        Assert.Equal(100, dashboard.StoragePercent);
+
+        // if the figures cannot be fetched, the last ones stay on the screen
+        main.LoadStorageStatus = () => throw new HttpRequestException("offline");
+        await dashboard.RefreshStorageStatusAsync();
+        Assert.True(dashboard.HasStorageStatus);
+
+        main.LoadStorageStatus = () => Task.FromResult<StorageStatus?>(null);
+        await dashboard.RefreshStorageStatusAsync();
+        Assert.False(dashboard.HasStorageStatus);
+
         // adding the same folder again does not create a second entry
         chosenFolder = SourceFolder;
         await dashboard.AddFolderCommand.ExecuteAsync(null);

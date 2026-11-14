@@ -10,10 +10,13 @@ public sealed class BackupManager(
     ConfigStore store,
     ISecretStore secrets,
     string resticPath,
-    ICloudFileSystem? cloudFiles = null)
+    ICloudFileSystem? cloudFiles = null,
+    StorageStatusService? storageStatus = null)
 {
     private readonly ICloudFileSystem? _cloudFiles =
         cloudFiles ?? (OperatingSystem.IsWindows() ? new WindowsCloudFileSystem() : null);
+
+    private readonly StorageStatusService _storageStatus = storageStatus ?? new StorageStatusService(new HttpClient());
 
     private readonly Lock _saveLock = new();
     private readonly SemaphoreSlim _backupGate = new(1, 1);
@@ -33,7 +36,8 @@ public sealed class BackupManager(
         string password,
         string? secretAccessKey,
         bool createIfMissing,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? apiToken = null)
     {
         if (storage.Kind == StorageKind.LocalFolder
             && Config.Folders.FirstOrDefault(f => FolderRules.Overlap(f.Path, storage.LocalPath)) is { } overlapping)
@@ -54,6 +58,7 @@ public sealed class BackupManager(
         {
             secrets.Set(SecretNames.RepositoryPassword, password);
             secrets.Set(SecretNames.SecretAccessKey, storage.IsS3 ? secretAccessKey : null);
+            secrets.Set(SecretNames.ApiToken, storage.IsS3 ? apiToken : null);
             Config.Storage = storage;
             Save();
         }
@@ -67,7 +72,38 @@ public sealed class BackupManager(
         Config.Storage = null;
         secrets.Set(SecretNames.RepositoryPassword, null);
         secrets.Set(SecretNames.SecretAccessKey, null);
+        secrets.Set(SecretNames.ApiToken, null);
         Save();
+    }
+
+    /// <summary>
+    /// Finds out how much storage is booked and used: from the service of Imagepixel,
+    /// or from the status file in the storage if the service gives no answer. Returns
+    /// null when there are no figures, which is always the case for a local folder.
+    /// </summary>
+    public async Task<StorageStatus?> GetStorageStatusAsync(CancellationToken cancellationToken = default)
+    {
+        if (Config.Storage is not { IsS3: true } storage)
+        {
+            return null;
+        }
+
+        var result = await _storageStatus.GetAsync(
+            storage,
+            secrets.Get(SecretNames.SecretAccessKey),
+            secrets.Get(SecretNames.ApiToken),
+            cancellationToken);
+
+        // The status file can announce the service. From then on the service is asked first.
+        if (result.ApiUrl is { } apiUrl && result.ApiToken is { } apiToken
+            && (apiUrl != storage.ApiUrl || apiToken != secrets.Get(SecretNames.ApiToken)))
+        {
+            storage.ApiUrl = apiUrl;
+            secrets.Set(SecretNames.ApiToken, apiToken);
+            Save();
+        }
+
+        return result.Status;
     }
 
     /// <summary>Adds a folder to back up. Returns the existing entry if the folder was added before.</summary>

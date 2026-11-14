@@ -28,6 +28,22 @@
         <ScrollViewer Grid.Row="1">
             <StackPanel Margin="28,22" Spacing="14">
 
+                <!-- how much of the booked storage is used -->
+                <Border Classes="card" Padding="20,14" IsVisible="{Binding HasStorageStatus}">
+                    <StackPanel Spacing="8">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                            <TextBlock FontWeight="SemiBold" Text="Dein Speicher bei Imagepixel" />
+                            <TextBlock Grid.Column="1" Classes="subtle" Text="{Binding StorageDetail}" TextWrapping="NoWrap" />
+                        </Grid>
+                        <ProgressBar Minimum="0" Maximum="100" Value="{Binding StoragePercent}"
+                                     Classes.warning="{Binding HasStorageWarning}" />
+                        <TextBlock Text="{Binding StorageText}" />
+                        <Border Classes="warning" IsVisible="{Binding HasStorageWarning}">
+                            <TextBlock Text="{Binding StorageWarning}" TextWrapping="Wrap" />
+                        </Border>
+                    </StackPanel>
+                </Border>
+
                 <Grid ColumnDefinitions="*,Auto">
                     <TextBlock Classes="heading" Text="Gesicherte Ordner" VerticalAlignment="Center" />
                     <Button Grid.Column="1" Classes="accent" Content="+  Ordner hinzufügen"

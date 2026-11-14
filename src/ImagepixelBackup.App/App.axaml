@@ -93,6 +93,10 @@
             <Setter Property="Padding" Value="14,10" />
         </Style>
 
+        <Style Selector="ProgressBar.warning">
+            <Setter Property="Foreground" Value="{DynamicResource WarningBorderBrush}" />
+        </Style>
+
         <!-- a small label that marks the recommended option -->
         <Style Selector="Border.badge">
             <Setter Property="Background" Value="{DynamicResource AccentBrush}" />

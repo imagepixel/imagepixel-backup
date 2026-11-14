@@ -19,6 +19,7 @@ public static class SecretNames
 {
     public const string RepositoryPassword = "repository-password";
     public const string SecretAccessKey = "secret-access-key";
+    public const string ApiToken = "api-token";
 }
 
 public static class SecretStore

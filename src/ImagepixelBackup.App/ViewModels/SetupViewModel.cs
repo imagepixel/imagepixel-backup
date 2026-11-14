@@ -35,6 +35,8 @@ public partial class SetupViewModel : ViewModelBase
     private readonly BackupManager _manager;
     private readonly MainViewModel _main;
     private string _region = ImagepixelStorage.DefaultRegion;
+    private string? _apiUrl;
+    private string? _apiToken;
 
     public SetupViewModel(BackupManager manager, MainViewModel main)
     {
@@ -182,6 +184,8 @@ public partial class SetupViewModel : ViewModelBase
             AccessKeyId = code.AccessKeyId;
             SecretAccessKey = code.SecretAccessKey;
             _region = code.Region;
+            _apiUrl = code.ApiUrl;
+            _apiToken = code.ApiToken;
             ErrorMessage = null;
         }
     }
@@ -259,14 +263,16 @@ public partial class SetupViewModel : ViewModelBase
             Region = _region,
             AccessKeyId = AccessKeyId.Trim(),
             LocalPath = LocalPath.Trim(),
+            ApiUrl = IsImagepixel ? _apiUrl ?? "" : "",
         };
         var secret = IsImagepixel ? SecretAccessKey.Trim() : null;
+        var apiToken = IsImagepixel ? _apiToken : null;
 
         IsBusy = true;
         BusyText = IsRestore ? "Backup wird geöffnet …" : "Verbindung wird geprüft …";
         try
         {
-            var state = await _manager.ConnectAsync(storage, Password, secret, createIfMissing: false);
+            var state = await _manager.ConnectAsync(storage, Password, secret, createIfMissing: false, apiToken: apiToken);
             if (state == RepositoryState.NotFound)
             {
                 // Restoring never creates anything: an empty place means the data is elsewhere.
@@ -285,7 +291,7 @@ public partial class SetupViewModel : ViewModelBase
                 }
 
                 BusyText = "Backup wird eingerichtet …";
-                state = await _manager.ConnectAsync(storage, Password, secret, createIfMissing: true);
+                state = await _manager.ConnectAsync(storage, Password, secret, createIfMissing: true, apiToken: apiToken);
             }
 
             if (state == RepositoryState.WrongPassword)
