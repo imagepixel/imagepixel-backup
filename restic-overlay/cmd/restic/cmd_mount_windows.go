@@ -4,6 +4,8 @@ package main
 
 import (
 	"context"
+	"io"
+	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -66,8 +68,9 @@ Exit status is 12 if the password is incorrect.
 // MountOptions collects all options for the mount command.
 type MountOptions struct {
 	data.SnapshotFilter
-	TimeTemplate string
-	VolumeName   string
+	TimeTemplate     string
+	VolumeName       string
+	StopOnStdinClose bool
 }
 
 func (opts *MountOptions) AddFlags(f *pflag.FlagSet) {
@@ -75,6 +78,7 @@ func (opts *MountOptions) AddFlags(f *pflag.FlagSet) {
 
 	f.StringVar(&opts.TimeTemplate, "time-template", winmount.DefaultTimeTemplate, "set `template` to use for the names of snapshot directories")
 	f.StringVar(&opts.VolumeName, "volume-name", winmount.DefaultVolumeName, "set the `name` of the volume as shown by Windows")
+	f.BoolVar(&opts.StopOnStdinClose, "stop-on-stdin-close", false, "unmount when standard input is closed, for use by graphical front ends")
 }
 
 func runMount(ctx context.Context, opts MountOptions, gopts global.Options, args []string, term ui.Terminal) error {
@@ -119,8 +123,20 @@ func runMount(ctx context.Context, opts MountOptions, gopts global.Options, args
 		return err
 	}
 
+	serveCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	if opts.StopOnStdinClose {
+		// A front end keeps a pipe to standard input open while the volume is
+		// needed. Closing the pipe unmounts the volume and releases the lock,
+		// which also happens when the front end exits unexpectedly.
+		go func() {
+			_, _ = io.Copy(io.Discard, os.Stdin)
+			cancel()
+		}()
+	}
+
 	debug.Log("serving mount at %v", mountpoint)
-	if err := fsys.Serve(ctx, mountpoint); err != nil {
+	if err := fsys.Serve(serveCtx, mountpoint); err != nil {
 		return err
 	}
 
