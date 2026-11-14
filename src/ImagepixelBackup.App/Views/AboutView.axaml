@@ -19,6 +19,16 @@
 
             <Border Classes="card">
                 <StackPanel Spacing="8">
+                    <TextBlock Classes="heading" Text="Anleitung" />
+                    <TextBlock Classes="subtle"
+                               Text="Schritt für Schritt erklärt: Backup einrichten, Daten wiederherstellen, Cloud-Speicher sichern und was die Meldungen des Programms bedeuten." />
+                    <Button Classes="accent" Content="Anleitung öffnen" Command="{Binding OpenLinkCommand}"
+                            CommandParameter="{x:Static vm:AboutViewModel.GuideUrl}" />
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="8">
                     <TextBlock Classes="heading" Text="Freie Software" />
                     <TextBlock Classes="subtle"
                                Text="Imagepixel Backup ist quelloffen und steht unter der BSD-2-Clause-Lizenz. Deine Daten werden auf deinem Rechner verschlüsselt, bevor sie ihn verlassen." />

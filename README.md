@@ -30,6 +30,9 @@ then on. Your data is encrypted on your computer before it leaves it.
   warns from 80 % on. Backups keep running when the storage is full.
 - The application stays in the notification area for scheduled backups.
 
+A guide for customers, in German, is in the
+[wiki](https://github.com/imagepixel/imagepixel-backup/wiki).
+
 ## Your password
 
 The backup is encrypted with a password that you choose. It is not sent to Imagepixel and

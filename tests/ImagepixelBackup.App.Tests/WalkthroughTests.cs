@@ -2,8 +2,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
-using Avalonia.Media.Imaging;
-using Avalonia.Threading;
 using ImagepixelBackup.App.ViewModels;
 using ImagepixelBackup.App.Views;
 using ImagepixelBackup.Core;
@@ -456,32 +454,7 @@ public sealed class WalkthroughTests : IDisposable
         }
     }
 
-    private static void Capture(Window window, string name)
-    {
-        Dispatcher.UIThread.RunJobs();
-        using var frame = window.CaptureRenderedFrame();
-        if (frame is null)
-        {
-            return;
-        }
-
-        var folder = Path.Combine(RepositoryRoot(), "artifacts", "screenshots");
-        Directory.CreateDirectory(folder);
-        frame.Save(Path.Combine(folder, name + ".png"), new PngBitmapEncoderOptions());
-    }
-
-    private static string RepositoryRoot()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "ImagepixelBackup.slnx")))
-            {
-                return directory.FullName;
-            }
-        }
-
-        return Path.GetTempPath();
-    }
+    private static void Capture(Window window, string name) => ScreenCapture.Save(window, "screenshots", name);
 
     public void Dispose()
     {

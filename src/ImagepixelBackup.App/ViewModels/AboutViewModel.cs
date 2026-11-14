@@ -6,6 +6,7 @@ namespace ImagepixelBackup.App.ViewModels;
 public partial class AboutViewModel(MainViewModel main, ViewModelBase previous) : ViewModelBase
 {
     public const string SourceUrl = "https://github.com/imagepixel/imagepixel-backup";
+    public const string GuideUrl = "https://github.com/imagepixel/imagepixel-backup/wiki";
     public const string ResticUrl = "https://restic.net";
     public const string WinFspUrl = "https://github.com/winfsp/winfsp";
 
