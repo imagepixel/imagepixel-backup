@@ -43,15 +43,19 @@ included, and it cannot be reset. Write it down and keep it somewhere safe.
 
 ## Status
 
-Early development, version 0.1.0. The Windows version works end to end and has a
-[setup program](https://github.com/imagepixel/imagepixel-backup/releases). Neither it nor
-the application is signed yet.
+Early development, version 0.1.0. The
+[pre-release](https://github.com/imagepixel/imagepixel-backup/releases) has downloads for
+Windows, macOS and Linux. None of them is signed yet.
 
-The Linux version is new and has no release yet. It is packed for Ubuntu and for CachyOS,
-keeps its secrets in the keyring of the desktop and opens backups as a drive. It does not
-look for folders of cloud services, which Linux has no common place for.
+The Windows version works end to end and has a setup program.
 
-The macOS version is a **beta** and has no release yet. Nobody has used it on a Mac so
+The Linux version is new. It is packed for Ubuntu and for CachyOS, keeps its secrets in
+the keyring of the desktop and opens backups as a drive. It does not look for folders of
+cloud services, which Linux has no common place for. It is tested by the
+[workflow](.github/workflows/linux.yml) and in containers; nobody has worked with it on a
+desktop yet.
+
+The macOS version is a **beta**. Nobody has used it on a Mac so
 far: it is built and tested by the [workflow](.github/workflows/macos.yml) on a Mac of
 GitHub only. The application says so in the title of its window and on its info page, and
 its disk images carry `beta` in their names. It backs up and restores like the Windows
