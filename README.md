@@ -9,7 +9,8 @@ then on. Your data is encrypted on your computer before it leaves it.
 
 **Backing up**
 
-- Pick folders, or OneDrive, Google Drive and iCloud Drive with one click
+- Pick folders, or on Windows and macOS OneDrive, Google Drive and iCloud Drive with one
+  click
 - Back up every hour, every day at a set time, or only on demand
 - Store the backup in Imagepixel Storage, or in a folder such as a USB drive
 - On Windows, files of a cloud service that are only stored online are downloaded for the
@@ -50,8 +51,9 @@ Windows, macOS and Linux. None of them is signed yet.
 The Windows version works end to end and has a setup program.
 
 The Linux version is new. It is packed for Ubuntu and for CachyOS, keeps its secrets in
-the keyring of the desktop and opens backups as a drive. It does not look for folders of
-cloud services, which Linux has no common place for. It is tested by the
+the keyring of the desktop and opens backups as a drive. It does not offer OneDrive,
+Google Drive and iCloud Drive as sources, because these services have no program for
+Linux. It is tested by the
 [workflow](.github/workflows/linux.yml) and in containers; nobody has worked with it on a
 desktop yet.
 

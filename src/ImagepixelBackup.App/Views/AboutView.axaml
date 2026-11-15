@@ -25,8 +25,7 @@
             <Border Classes="card">
                 <StackPanel Spacing="8">
                     <TextBlock Classes="heading" Text="Anleitung" />
-                    <TextBlock Classes="subtle"
-                               Text="Schritt für Schritt erklärt: Backup einrichten, Daten wiederherstellen, Cloud-Speicher sichern und was die Meldungen des Programms bedeuten." />
+                    <TextBlock Classes="subtle" Text="{x:Static local:Texts.GuideHint}" />
                     <Button Classes="accent" Content="Anleitung öffnen" Command="{Binding OpenLinkCommand}"
                             CommandParameter="{x:Static vm:AboutViewModel.GuideUrl}" />
                 </StackPanel>

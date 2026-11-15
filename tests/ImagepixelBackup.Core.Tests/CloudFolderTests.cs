@@ -37,6 +37,17 @@ public sealed class CloudFolderTests : IDisposable
     }
 
     [Fact]
+    public void Linux_offers_no_cloud_storage()
+    {
+        Assert.Equal(!OperatingSystem.IsLinux(), CloudFolderDetector.IsSupported);
+
+        if (OperatingSystem.IsLinux())
+        {
+            Assert.Empty(CloudFolderDetector.Detect());
+        }
+    }
+
+    [Fact]
     public void Personal_and_work_OneDrive_are_found_once_each()
     {
         var personal = Create(Profile, "OneDrive");

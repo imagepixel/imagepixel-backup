@@ -25,6 +25,11 @@ public static class Texts
         + "Prüfe nach dem ersten Backup, ob sich deine Daten wiederherstellen lassen, "
         + "und verlasse dich vorerst nicht allein auf dieses Backup.";
 
+    /// <summary>What the guide explains. Linux has no cloud storage to back up.</summary>
+    public static string GuideHint => CloudFolderDetector.IsSupported
+        ? "Schritt für Schritt erklärt: Backup einrichten, Daten wiederherstellen, Cloud-Speicher sichern und was die Meldungen des Programms bedeuten."
+        : "Schritt für Schritt erklärt: Backup einrichten, Daten wiederherstellen und was die Meldungen des Programms bedeuten.";
+
     /// <summary>
     /// What happens to files of a cloud service that are not stored on the computer.
     /// Freeing them up again after the backup is only implemented for Windows.

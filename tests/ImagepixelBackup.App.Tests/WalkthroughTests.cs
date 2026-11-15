@@ -67,6 +67,11 @@ public sealed class WalkthroughTests : IDisposable
         new(CloudService.ICloudDrive, "iCloud Drive", Path.Combine(_root, "iCloudDrive")),
     ];
 
+    /// <summary>What the application finds of it: nothing on Linux, where no cloud storage is offered.</summary>
+    private CloudFolder[] FoundCloudStorage => CloudFolderDetector.IsSupported ? CloudStorage : [];
+
+    private static bool OffersCloudStorage => CloudFolderDetector.IsSupported;
+
     public WalkthroughTests()
     {
         foreach (var cloud in CloudStorage)
@@ -91,7 +96,7 @@ public sealed class WalkthroughTests : IDisposable
         Assert.SkipWhen(restic is null, "restic has not been built");
 
         var manager = new BackupManager(new ConfigStore(DataFolder), new MemorySecretStore(), restic!);
-        var main = new MainViewModel(manager, CloudStorage);
+        var main = new MainViewModel(manager, FoundCloudStorage);
         var window = new MainWindow { DataContext = main };
 
         // answers of the folder dialog, and the folders the application wants to show
@@ -127,17 +132,22 @@ public sealed class WalkthroughTests : IDisposable
         await setup.ConnectCommand.ExecuteAsync(null);
         Assert.Contains("zuerst aus, was gesichert werden soll", setup.ErrorMessage);
 
-        // cloud storage found on the computer is one click away and comes with an explanation
-        Assert.Equal(3, setup.CloudFolders.Count);
+        // cloud storage found on the computer is one click away and comes with an
+        // explanation; Linux offers none
+        Assert.Equal(OffersCloudStorage, setup.HasCloudFolders);
         Assert.False(setup.HasCloudSource);
-        setup.AddCloudSourceCommand.Execute(CloudStorage[0]);
-        setup.AddCloudSourceCommand.Execute(CloudStorage[0]);
-        Assert.Equal([CloudStorage[0].Path], setup.Sources);
-        Assert.True(setup.HasCloudSource);
-        Assert.True(setup.CanChooseDestination);
-        Capture(window, "01b-einrichtung-cloud-speicher");
-        setup.RemoveSourceCommand.Execute(CloudStorage[0].Path);
-        Assert.False(setup.CanChooseDestination);
+        if (OffersCloudStorage)
+        {
+            Assert.Equal(3, setup.CloudFolders.Count);
+            setup.AddCloudSourceCommand.Execute(CloudStorage[0]);
+            setup.AddCloudSourceCommand.Execute(CloudStorage[0]);
+            Assert.Equal([CloudStorage[0].Path], setup.Sources);
+            Assert.True(setup.HasCloudSource);
+            Assert.True(setup.CanChooseDestination);
+            Capture(window, "01b-einrichtung-cloud-speicher");
+            setup.RemoveSourceCommand.Execute(CloudStorage[0].Path);
+            Assert.False(setup.CanChooseDestination);
+        }
 
         chosenFolder = SourceFolder;
         await setup.AddSourceCommand.ExecuteAsync(null);
@@ -177,11 +187,15 @@ public sealed class WalkthroughTests : IDisposable
         Assert.Contains("liegen ineinander", setup.ErrorMessage);
         Assert.False(manager.IsConnected);
 
-        // a folder of a cloud service is allowed as a destination, with an explanation
+        // a folder of a cloud service is allowed as a destination, with an explanation;
+        // on Linux it is a folder like any other
         setup.LocalPath = Path.Combine(CloudStorage[0].Path, "Backup");
-        Assert.True(setup.HasDestinationHint);
-        Assert.Contains("gehört zu OneDrive", setup.DestinationHint);
-        Capture(window, "04-einrichtung-ziel-im-cloud-ordner");
+        Assert.Equal(OffersCloudStorage, setup.HasDestinationHint);
+        if (OffersCloudStorage)
+        {
+            Assert.Contains("gehört zu OneDrive", setup.DestinationHint);
+            Capture(window, "04-einrichtung-ziel-im-cloud-ordner");
+        }
 
         chosenFolder = StorageFolder;
         await setup.BrowseCommand.ExecuteAsync(null);
@@ -365,7 +379,7 @@ public sealed class WalkthroughTests : IDisposable
 
         // the new computer: nothing has been set up
         var manager = new BackupManager(new ConfigStore(DataFolder), new MemorySecretStore(), restic!);
-        var main = new MainViewModel(manager, CloudStorage);
+        var main = new MainViewModel(manager, FoundCloudStorage);
         var window = new MainWindow { DataContext = main };
         string? chosenFolder = null;
         var opened = new List<string>();
@@ -458,22 +472,26 @@ public sealed class WalkthroughTests : IDisposable
         var dashboard = Assert.IsType<DashboardViewModel>(main.CurrentPage);
         Assert.True(dashboard.HasNoFolders);
         Assert.Equal(CanMount, dashboard.IsMounted);
-        Assert.Equal(3, dashboard.AvailableCloudFolders.Count);
+        Assert.Equal(OffersCloudStorage ? 3 : 0, dashboard.AvailableCloudFolders.Count);
+        Assert.Equal(OffersCloudStorage, dashboard.HasAvailableCloudFolders);
         Capture(window, "10-uebersicht-ohne-ordner");
 
-        // a cloud folder is added with one click, backed up right away and explained
-        await dashboard.AddCloudFolderCommand.ExecuteAsync(CloudStorage[2]);
-        var cloudFolder = Assert.Single(dashboard.Folders);
-        Assert.Equal(CloudStorage[2].Path, cloudFolder.Path);
-        Assert.Equal("iCloud Drive", cloudFolder.Name);
-        Assert.True(cloudFolder.IsCloudFolder);
-        Assert.False(cloudFolder.HasProblem, cloudFolder.StatusText);
-        Assert.NotNull(cloudFolder.Folder.LastSuccess);
-        Assert.Equal(["OneDrive", "Google Drive"], dashboard.AvailableCloudFolders.Select(c => c.Name));
-        Capture(window, "10b-uebersicht-cloud-ordner");
+        if (OffersCloudStorage)
+        {
+            // a cloud folder is added with one click, backed up right away and explained
+            await dashboard.AddCloudFolderCommand.ExecuteAsync(CloudStorage[2]);
+            var cloudFolder = Assert.Single(dashboard.Folders);
+            Assert.Equal(CloudStorage[2].Path, cloudFolder.Path);
+            Assert.Equal("iCloud Drive", cloudFolder.Name);
+            Assert.True(cloudFolder.IsCloudFolder);
+            Assert.False(cloudFolder.HasProblem, cloudFolder.StatusText);
+            Assert.NotNull(cloudFolder.Folder.LastSuccess);
+            Assert.Equal(["OneDrive", "Google Drive"], dashboard.AvailableCloudFolders.Select(c => c.Name));
+            Capture(window, "10b-uebersicht-cloud-ordner");
 
-        cloudFolder.RemoveCommand.Execute(null);
-        Assert.Equal(3, dashboard.AvailableCloudFolders.Count);
+            cloudFolder.RemoveCommand.Execute(null);
+            Assert.Equal(3, dashboard.AvailableCloudFolders.Count);
+        }
 
         // the info page names the components and returns to where it was opened
         dashboard.ShowAboutCommand.Execute(null);

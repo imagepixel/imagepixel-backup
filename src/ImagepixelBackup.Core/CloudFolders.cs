@@ -32,8 +32,15 @@ public sealed class CloudFolderDetector
     /// <summary>The volumes of the computer with their labels. Replaceable for tests.</summary>
     public Func<IEnumerable<(string Root, string Label)>> Volumes { get; init; } = SystemVolumes;
 
-    /// <summary>Finds the cloud folders of the current user.</summary>
-    public static IReadOnlyList<CloudFolder> Detect() => new CloudFolderDetector().Find();
+    /// <summary>
+    /// Whether cloud storage is offered as a source on this system. Linux is left out:
+    /// OneDrive, Google Drive and iCloud Drive have no program there that keeps a folder
+    /// in sync.
+    /// </summary>
+    public static bool IsSupported => !OperatingSystem.IsLinux();
+
+    /// <summary>Finds the cloud folders of the current user. None where they are not offered.</summary>
+    public static IReadOnlyList<CloudFolder> Detect() => IsSupported ? new CloudFolderDetector().Find() : [];
 
     public IReadOnlyList<CloudFolder> Find()
     {

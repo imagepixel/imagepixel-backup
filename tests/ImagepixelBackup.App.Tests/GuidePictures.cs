@@ -19,22 +19,33 @@ public sealed class GuidePictures : IDisposable
 
     // the folders of the made-up customer, as they are called on the system the pictures are made on
     private static readonly bool Windows = OperatingSystem.IsWindows();
-    private static readonly string Documents = Windows ? @"C:\Users\Anna\Dokumente" : "/Users/anna/Documents";
-    private static readonly string OneDrive = Windows ? @"C:\Users\Anna\OneDrive" : "/Users/anna/Library/CloudStorage/OneDrive-Personal";
-    private static readonly string RestoreTarget = Windows ? @"D:\Wiederhergestellt" : "/Users/anna/Wiederhergestellt";
+    private static readonly bool Linux = OperatingSystem.IsLinux();
+    private static readonly string Documents =
+        Windows ? @"C:\Users\Anna\Dokumente" : Linux ? "/home/anna/Dokumente" : "/Users/anna/Documents";
+    private static readonly string RestoreTarget =
+        Windows ? @"D:\Wiederhergestellt" : Linux ? "/home/anna/Wiederhergestellt" : "/Users/anna/Wiederhergestellt";
 
-    private static readonly CloudFolder[] CloudStorage =
-    [
-        new(CloudService.OneDrive, "OneDrive", OneDrive),
-        new(
-            CloudService.GoogleDrive,
-            "Google Drive",
-            Windows ? @"G:\Meine Ablage" : "/Users/anna/Library/CloudStorage/GoogleDrive-anna@example.com/Meine Ablage"),
-        new(
-            CloudService.ICloudDrive,
-            "iCloud Drive",
-            Windows ? @"C:\Users\Anna\iCloudDrive" : "/Users/anna/Library/Mobile Documents/com~apple~CloudDocs"),
-    ];
+    // the second folder the customer backs up: OneDrive, or the pictures on Linux,
+    // where no cloud storage is offered
+    private static readonly string SecondFolder =
+        Windows ? @"C:\Users\Anna\OneDrive"
+        : Linux ? "/home/anna/Bilder"
+        : "/Users/anna/Library/CloudStorage/OneDrive-Personal";
+
+    private static readonly CloudFolder[] CloudStorage = Linux
+        ? []
+        :
+        [
+            new(CloudService.OneDrive, "OneDrive", SecondFolder),
+            new(
+                CloudService.GoogleDrive,
+                "Google Drive",
+                Windows ? @"G:\Meine Ablage" : "/Users/anna/Library/CloudStorage/GoogleDrive-anna@example.com/Meine Ablage"),
+            new(
+                CloudService.ICloudDrive,
+                "iCloud Drive",
+                Windows ? @"C:\Users\Anna\iCloudDrive" : "/Users/anna/Library/Mobile Documents/com~apple~CloudDocs"),
+        ];
 
     private readonly string _root = Path.Combine(Path.GetTempPath(), "ipb-guide-" + Guid.NewGuid().ToString("N"));
 
@@ -65,11 +76,12 @@ public sealed class GuidePictures : IDisposable
 
         setup.ChooseModeCommand.Execute("Backup");
         setup.Sources.Add(Documents);
-        setup.Sources.Add(OneDrive);
+        setup.Sources.Add(SecondFolder);
         setup.SetupCodeText = new SetupCode(Bucket, "ABCDEFGHIJKLMNOPQRST", "ein-geheimer-schluessel", "eu-central-2").Encode();
         setup.Password = "ein langes Passwort";
         setup.PasswordRepeat = "ein langes Passwort";
-        window.Height = 1700;
+        // the page is shorter where no cloud storage is offered
+        window.Height = CloudStorage.Length > 0 ? 1700 : 1590;
         ScreenCapture.Save(window, "guide", "sichern");
 
         setup.ChooseModeCommand.Execute("Restore");
@@ -92,7 +104,7 @@ public sealed class GuidePictures : IDisposable
                 new BackupFolder { Path = Documents, LastAttempt = now.AddMinutes(-25), LastSuccess = now.AddMinutes(-25) },
                 new BackupFolder
                 {
-                    Path = OneDrive,
+                    Path = SecondFolder,
                     Schedule = ScheduleKind.Daily,
                     DailyAt = new TimeOnly(18, 30),
                     LastAttempt = now,
@@ -106,9 +118,13 @@ public sealed class GuidePictures : IDisposable
         var main = new MainViewModel(Manager(secrets), CloudStorage);
         if (main.LoginItem is not null)
         {
-            // the picture shows a Mac that starts the application at login
-            main.LoginItem = new MacLoginItem(Path.Combine(_root, "LaunchAgents"));
-            main.LoginItem.Enable("/Applications/Imagepixel Backup.app/Contents/MacOS/ImagepixelBackup", "--minimized");
+            // the picture shows a computer that starts the application at login
+            main.LoginItem = Linux
+                ? new LinuxLoginItem(Path.Combine(_root, "autostart"))
+                : new MacLoginItem(Path.Combine(_root, "LaunchAgents"));
+            main.LoginItem.Enable(
+                Linux ? "/opt/imagepixel-backup/ImagepixelBackup" : "/Applications/Imagepixel Backup.app/Contents/MacOS/ImagepixelBackup",
+                "--minimized");
         }
 
         var window = new MainWindow { DataContext = main, Height = 900 };
