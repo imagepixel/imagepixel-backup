@@ -5,7 +5,7 @@
 #
 #   tests/run-on-linux.sh [arguments for "dotnet test"]
 #
-# Requirements: the .NET 10 SDK, dbus, gnome-keyring and libsecret-tools (Arch: libsecret),
+# Requirements: the .NET 10 SDK, dbus with dbus-send, gnome-keyring and libsecret-tools (Arch: libsecret),
 # fuse3 for the drive, and restic built by build-restic.sh.
 set -euo pipefail
 
@@ -16,6 +16,6 @@ exec dbus-run-session -- bash -c '
     set -euo pipefail
     root="$1"
     shift
-    echo -n "test" | gnome-keyring-daemon --unlock --components=secrets > /dev/null
+    . "$root/tests/start-keyring.sh"
     dotnet test "$root/ImagepixelBackup.slnx" --configuration Release "$@"
 ' run-on-linux "$root" "$@"

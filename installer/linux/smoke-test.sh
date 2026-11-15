@@ -14,6 +14,7 @@ set -euo pipefail
 
 package="$(realpath "$1")"
 pictures="${2:-}"
+root="$(cd "$(dirname "$0")/../.." && pwd)"
 
 . /etc/os-release
 echo "Testing $(basename "$package") on $PRETTY_NAME"
@@ -45,11 +46,12 @@ work="$(mktemp -d)"
 export IMAGEPIXEL_BACKUP_DATA="$work/settings"
 export PICTURES="$pictures"
 export SYSTEM="$ID"
+export KEYRING="$root/tests/start-keyring.sh"
 
 # shellcheck disable=SC2016
 dbus-run-session -- bash -c '
     set -euo pipefail
-    echo -n "test" | gnome-keyring-daemon --unlock --components=secrets > /dev/null
+    . "$KEYRING"
 
     echo "Keeping a secret in the keyring ..."
     echo -n "ipb1test" | secret-tool store --label "Imagepixel Backup (test)" service de.imagepixel.backup.test account test
