@@ -205,7 +205,7 @@ public partial class SetupViewModel : ViewModelBase
             return;
         }
 
-        if (!Sources.Contains(path, StringComparer.OrdinalIgnoreCase))
+        if (!Sources.Contains(path, FolderRules.PathComparer))
         {
             Sources.Add(path);
         }
@@ -216,7 +216,7 @@ public partial class SetupViewModel : ViewModelBase
     [RelayCommand]
     private void AddCloudSource(CloudFolder folder)
     {
-        if (!Sources.Contains(folder.Path, StringComparer.OrdinalIgnoreCase))
+        if (!Sources.Contains(folder.Path, FolderRules.PathComparer))
         {
             Sources.Add(folder.Path);
         }

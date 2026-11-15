@@ -1,0 +1,77 @@
+name: Linux
+
+# Builds and tests the application on Ubuntu, packs it for Ubuntu and for CachyOS,
+# installs each package on a fresh system of its kind and starts the application
+# there. The packages are kept as a download of the run.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install what the tests and the packages need
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q fuse3 libsecret-tools gnome-keyring dbus-daemon libarchive-tools zstd
+
+      - name: Build restic
+        run: ./build-restic.sh
+
+      - name: Run the tests
+        run: tests/run-on-linux.sh
+
+      - name: Build the packages
+        run: ./build-linux.sh
+
+      - name: Install and start on Ubuntu
+        run: |
+          package="$(basename artifacts/linux/*.deb)"
+          docker run --rm --cap-add IPC_LOCK -v "$PWD:/src" ubuntu:rolling \
+            bash /src/installer/linux/smoke-test.sh "/src/artifacts/linux/$package" /src/artifacts/screenshots
+
+      - name: Install and start on CachyOS
+        run: |
+          package="$(basename artifacts/linux/*.pkg.tar.zst)"
+          docker run --rm --cap-add IPC_LOCK -v "$PWD:/src" cachyos/cachyos:latest \
+            bash /src/installer/linux/smoke-test.sh "/src/artifacts/linux/$package" /src/artifacts/screenshots
+
+      - name: Keep the packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: imagepixel-backup-linux
+          path: |
+            artifacts/linux/*.deb
+            artifacts/linux/*.pkg.tar.zst
+          if-no-files-found: error
+
+      - name: Keep the pictures of the screens
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screens-on-linux
+          path: |
+            artifacts/screenshots
+            artifacts/guide
+          if-no-files-found: ignore

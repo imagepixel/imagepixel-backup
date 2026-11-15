@@ -32,8 +32,17 @@ public static class SecretStore
             return new DpapiSecretStore(directory ?? ConfigStore.DefaultDirectory);
         }
 
-        throw new PlatformNotSupportedException(
-            "Storing secrets is only implemented for Windows so far. macOS needs a Keychain based store.");
+        if (OperatingSystem.IsMacOS())
+        {
+            return new MacKeychainSecretStore();
+        }
+
+        if (OperatingSystem.IsLinux())
+        {
+            return new LinuxSecretStore();
+        }
+
+        throw new PlatformNotSupportedException("Storing secrets is only implemented for Windows, macOS and Linux.");
     }
 }
 

@@ -12,23 +12,25 @@ then on. Your data is encrypted on your computer before it leaves it.
 - Pick folders, or OneDrive, Google Drive and iCloud Drive with one click
 - Back up every hour, every day at a set time, or only on demand
 - Store the backup in Imagepixel Storage, or in a folder such as a USB drive
-- Files of a cloud service that are only stored online are downloaded for the backup and
-  freed up again once they are saved, so the disk does not fill up. Files set to always
-  stay on the computer are left alone.
+- On Windows, files of a cloud service that are only stored online are downloaded for the
+  backup and freed up again once they are saved, so the disk does not fill up. Files set to
+  always stay on the computer are left alone.
 
 **Getting data back**
 
 - The first screen asks whether you want to back up or to restore. Restoring only needs
   the place of the backup and its password, for example on a newly set up computer.
 - Restore a folder from any earlier state
-- Open all backups as a read-only drive and copy single files out of it. Nothing can be
-  changed through the drive, so a backup cannot be damaged by browsing it.
+- On Windows and Linux, open all backups as a read-only drive and copy single files out of
+  it. Nothing can be changed through the drive, so a backup cannot be damaged by browsing it.
 
 **Keeping an eye on it**
 
 - With Imagepixel Storage the overview shows how much of the booked storage is used and
   warns from 80 % on. Backups keep running when the storage is full.
-- The application stays in the notification area for scheduled backups.
+- The application stays in the notification area, on macOS in the menu bar, for scheduled
+  backups. On macOS and Linux it offers to start at login; on Windows the setup program
+  takes care of that.
 
 A guide for customers, in German, is in the
 [wiki](https://github.com/imagepixel/imagepixel-backup/wiki).
@@ -41,11 +43,26 @@ included, and it cannot be reset. Write it down and keep it somewhere safe.
 
 ## Status
 
-Early development, version 0.1.0. The Windows version works end to end. macOS is planned,
-and the user interface is built with a toolkit that runs on both. There is no signed
-release yet; to try the application, build it as described below.
+Early development, version 0.1.0. The Windows version works end to end and has a
+[setup program](https://github.com/imagepixel/imagepixel-backup/releases). Neither it nor
+the application is signed yet.
+
+The Linux version is new and has no release yet. It is packed for Ubuntu and for CachyOS,
+keeps its secrets in the keyring of the desktop and opens backups as a drive. It does not
+look for folders of cloud services, which Linux has no common place for.
+
+The macOS version is a **beta** and has no release yet. Nobody has used it on a Mac so
+far: it is built and tested by the [workflow](.github/workflows/macos.yml) on a Mac of
+GitHub only. The application says so in the title of its window and on its info page, and
+its disk images carry `beta` in their names. It backs up and restores like the Windows
+version and keeps its secrets in the keychain. Two things are missing: it cannot open
+backups as a drive, and it does not free up files of a cloud service again that were
+downloaded for the backup. Without a certificate of an Apple developer account macOS asks
+for confirmation in the system settings before it opens the application for the first time.
 
 ## Building
+
+### Windows
 
 Requirements: Windows 10 or 11 (64 bit), Git, Go and the .NET 10 SDK.
 [WinFsp](https://winfsp.dev) is needed to open backups as a drive, and Inno Setup 6 to
@@ -68,9 +85,69 @@ dotnet test
 The setup program brings everything a computer needs: the application with the .NET
 runtime, restic, and the installer of WinFsp, which it runs if WinFsp is missing.
 
+### macOS (beta)
+
+Requirements: macOS 14 or later, Git, Go and the .NET 10 SDK.
+
+```bash
+# builds restic for Macs with an Apple chip and with an Intel chip
+./build-restic.sh
+
+# runs the application
+dotnet run --project src/ImagepixelBackup.App
+
+# runs the tests
+dotnet test
+
+# builds artifacts/macos/ImagepixelBackup-<version>-beta-mac-arm64.dmg and -beta-mac-x64.dmg
+./build-macos.sh
+
+# takes the application out of its disk image and checks that it starts
+installer/macos/smoke-test.sh
+```
+
+A disk image holds the application with the .NET runtime and restic. The application
+carries an ad-hoc signature only. The [workflow](.github/workflows/macos.yml) runs these
+steps on a Mac of GitHub with every change and keeps the disk images.
+
+### Linux
+
+Requirements: a 64 bit Linux with Git, Go and the .NET 10 SDK. The tests of the keyring
+need `dbus`, `gnome-keyring` and `secret-tool`, the tests of the drive `fuse3`. The
+packages are built with `dpkg-deb`, `bsdtar` and `zstd`.
+
+```bash
+# builds restic
+./build-restic.sh
+
+# runs the application
+dotnet run --project src/ImagepixelBackup.App
+
+# runs the tests with a session bus and an unlocked keyring
+tests/run-on-linux.sh
+
+# builds artifacts/linux/imagepixel-backup_<version>_amd64.deb for Ubuntu
+# and artifacts/linux/imagepixel-backup-<version>-1-x86_64.pkg.tar.zst for CachyOS
+./build-linux.sh
+
+# installs a package on a fresh system and checks that the application starts
+docker run --rm --cap-add IPC_LOCK -v "$PWD:/src" ubuntu:rolling \
+    bash /src/installer/linux/smoke-test.sh /src/artifacts/linux/imagepixel-backup_0.1.0_amd64.deb
+```
+
+Both packages put the application with the .NET runtime and restic into
+`/opt/imagepixel-backup` and add an entry to the menu. They are installed with
+`sudo apt install ./imagepixel-backup_<version>_amd64.deb` on Ubuntu and with
+`sudo pacman -U imagepixel-backup-<version>-1-x86_64.pkg.tar.zst` on CachyOS, which also
+fetches what the application needs from the system: `secret-tool` for the keyring and
+FUSE for the drive. The [workflow](.github/workflows/linux.yml) runs these steps on
+GitHub with every change.
+
+### Tests
+
 The tests run restic against repositories in the temp folder and walk through the user
 interface without showing a window. Pictures of every screen are saved to
-`artifacts\screenshots`.
+`artifacts/screenshots`.
 
 ## Layout
 
@@ -80,7 +157,7 @@ interface without showing a window. Pictures of every screen are saved to
 | `src/ImagepixelBackup.App` | The desktop application (Avalonia) |
 | `tools/ImagepixelBackup.Admin` | `ipb-admin`: creates setup codes and writes the storage status file |
 | `restic-overlay` | Files added to restic so that it can mount repositories on Windows |
-| `installer` | The script of the setup program |
+| `installer` | The script of the setup program for Windows, and what the disk image for macOS and the packages for Linux are made of |
 | `docs` | [How the application learns how much storage is booked and used](docs/storage-status.md) |
 | `tests` | Tests for the core and a walkthrough of the user interface |
 
@@ -88,8 +165,9 @@ interface without showing a window. Pictures of every screen are saved to
 
 Upstream restic cannot mount repositories on Windows. `build-restic.ps1` fetches the pinned
 restic release, copies the files from `restic-overlay` on top of it and builds the result.
-The volume rejects every operation that would change it. When the application ends for
-any reason, the drive is unmounted and its lock in the repository is released.
+The volume rejects every operation that would change it. On Linux restic mounts through
+FUSE as it comes. On both systems the drive is unmounted and its lock in the repository
+is released when the application ends for any reason.
 
 ## Contributing
 

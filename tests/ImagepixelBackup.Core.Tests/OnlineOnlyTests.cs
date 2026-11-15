@@ -157,7 +157,7 @@ public sealed class OnlineOnlyTests : IDisposable
         Assert.Equal(CloudFileState.OnlineOnly, cloud.States["never"]);
     }
 
-    [Theory]
+    [SkippableTheory]
     [InlineData("/Dokumente/Brief.txt", @"C:\Users\anna", @"C:\Users\anna\Dokumente\Brief.txt")]
     [InlineData("/Meine Ablage/a/b.txt", @"G:\", @"G:\Meine Ablage\a\b.txt")]
     [InlineData("/C/Users/anna/Dokumente/Brief.txt", null, @"C:\Users\anna\Dokumente\Brief.txt")]
@@ -165,6 +165,17 @@ public sealed class OnlineOnlyTests : IDisposable
     public void Paths_reported_by_restic_are_mapped_back_to_the_computer(string item, string? workingDirectory, string expected)
     {
         Skip.IfNot(OperatingSystem.IsWindows(), "the expected paths are Windows paths");
+
+        Assert.Equal(expected, ResticClient.ItemToPath(item, workingDirectory));
+    }
+
+    [SkippableTheory]
+    [InlineData("/Dokumente/Brief.txt", "/Users/anna", "/Users/anna/Dokumente/Brief.txt")]
+    [InlineData("/Meine Ablage/a/b.txt", "/Volumes/Daten", "/Volumes/Daten/Meine Ablage/a/b.txt")]
+    [InlineData("/Users/anna/Dokumente/Brief.txt", null, "/Users/anna/Dokumente/Brief.txt")]
+    public void Paths_reported_by_restic_are_mapped_back_on_macOS_too(string item, string? workingDirectory, string expected)
+    {
+        Skip.If(OperatingSystem.IsWindows(), "the expected paths are macOS paths");
 
         Assert.Equal(expected, ResticClient.ItemToPath(item, workingDirectory));
     }

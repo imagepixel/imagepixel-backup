@@ -17,11 +17,23 @@ public sealed class GuidePictures : IDisposable
     private const long Gb = 1024L * 1024 * 1024;
     private const string Bucket = "musterfirma-gmbh";
 
+    // the folders of the made-up customer, as they are called on the system the pictures are made on
+    private static readonly bool Windows = OperatingSystem.IsWindows();
+    private static readonly string Documents = Windows ? @"C:\Users\Anna\Dokumente" : "/Users/anna/Documents";
+    private static readonly string OneDrive = Windows ? @"C:\Users\Anna\OneDrive" : "/Users/anna/Library/CloudStorage/OneDrive-Personal";
+    private static readonly string RestoreTarget = Windows ? @"D:\Wiederhergestellt" : "/Users/anna/Wiederhergestellt";
+
     private static readonly CloudFolder[] CloudStorage =
     [
-        new(CloudService.OneDrive, "OneDrive", @"C:\Users\Anna\OneDrive"),
-        new(CloudService.GoogleDrive, "Google Drive", @"G:\Meine Ablage"),
-        new(CloudService.ICloudDrive, "iCloud Drive", @"C:\Users\Anna\iCloudDrive"),
+        new(CloudService.OneDrive, "OneDrive", OneDrive),
+        new(
+            CloudService.GoogleDrive,
+            "Google Drive",
+            Windows ? @"G:\Meine Ablage" : "/Users/anna/Library/CloudStorage/GoogleDrive-anna@example.com/Meine Ablage"),
+        new(
+            CloudService.ICloudDrive,
+            "iCloud Drive",
+            Windows ? @"C:\Users\Anna\iCloudDrive" : "/Users/anna/Library/Mobile Documents/com~apple~CloudDocs"),
     ];
 
     private readonly string _root = Path.Combine(Path.GetTempPath(), "ipb-guide-" + Guid.NewGuid().ToString("N"));
@@ -52,8 +64,8 @@ public sealed class GuidePictures : IDisposable
         ScreenCapture.Save(window, "guide", "start");
 
         setup.ChooseModeCommand.Execute("Backup");
-        setup.Sources.Add(@"C:\Users\Anna\Dokumente");
-        setup.Sources.Add(@"C:\Users\Anna\OneDrive");
+        setup.Sources.Add(Documents);
+        setup.Sources.Add(OneDrive);
         setup.SetupCodeText = new SetupCode(Bucket, "ABCDEFGHIJKLMNOPQRST", "ein-geheimer-schluessel", "eu-central-2").Encode();
         setup.Password = "ein langes Passwort";
         setup.PasswordRepeat = "ein langes Passwort";
@@ -77,10 +89,10 @@ public sealed class GuidePictures : IDisposable
             Storage = new StorageSettings { Kind = StorageKind.ImagepixelStorage, Bucket = Bucket, AccessKeyId = "ABCDEFGHIJKLMNOPQRST" },
             Folders =
             {
-                new BackupFolder { Path = @"C:\Users\Anna\Dokumente", LastAttempt = now.AddMinutes(-25), LastSuccess = now.AddMinutes(-25) },
+                new BackupFolder { Path = Documents, LastAttempt = now.AddMinutes(-25), LastSuccess = now.AddMinutes(-25) },
                 new BackupFolder
                 {
-                    Path = @"C:\Users\Anna\OneDrive",
+                    Path = OneDrive,
                     Schedule = ScheduleKind.Daily,
                     DailyAt = new TimeOnly(18, 30),
                     LastAttempt = now,
@@ -92,6 +104,13 @@ public sealed class GuidePictures : IDisposable
         var secrets = new MemorySecretStore();
         secrets.Set(SecretNames.RepositoryPassword, "password");
         var main = new MainViewModel(Manager(secrets), CloudStorage);
+        if (main.LoginItem is not null)
+        {
+            // the picture shows a Mac that starts the application at login
+            main.LoginItem = new MacLoginItem(Path.Combine(_root, "LaunchAgents"));
+            main.LoginItem.Enable("/Applications/Imagepixel Backup.app/Contents/MacOS/ImagepixelBackup", "--minimized");
+        }
+
         var window = new MainWindow { DataContext = main, Height = 900 };
         window.Show();
 
@@ -147,7 +166,7 @@ public sealed class GuidePictures : IDisposable
 
         Assert.Equal(2, restore.Snapshots.Count);
         restore.SelectedSnapshot = restore.Snapshots[0];
-        restore.TargetFolder = @"D:\Wiederhergestellt";
+        restore.TargetFolder = RestoreTarget;
         ScreenCapture.Save(window, "guide", "wiederherstellen");
 
         await main.ShutdownAsync();

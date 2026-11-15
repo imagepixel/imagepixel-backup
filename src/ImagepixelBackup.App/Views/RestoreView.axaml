@@ -10,10 +10,9 @@
             <Button Content="←  Zurück zur Übersicht" Command="{Binding BackCommand}" />
             <TextBlock Classes="title" Text="Daten wiederherstellen" Margin="0,8,0,0" />
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                <TextBlock Classes="subtle" VerticalAlignment="Center"
-                           Text="Wähle den Stand aus, den du als Ganzes zurückholen möchtest. Brauchst du nur einzelne Dateien, öffne das Backup als Laufwerk und kopiere sie im Explorer heraus." />
+                <TextBlock Classes="subtle" VerticalAlignment="Center" Text="{Binding Hint}" />
                 <Button Grid.Column="1" Content="Als Laufwerk öffnen" VerticalAlignment="Center"
-                        Command="{Binding OpenAsDriveCommand}" />
+                        Command="{Binding OpenAsDriveCommand}" IsVisible="{Binding CanOpenAsDrive}" />
             </Grid>
         </StackPanel>
 

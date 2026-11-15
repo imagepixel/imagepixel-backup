@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Imagepixel Backup
+GenericName=Backup
+Comment=Ordner sichern und wiederherstellen
+Exec=/opt/imagepixel-backup/ImagepixelBackup
+Icon=imagepixel-backup
+Terminal=false
+Categories=Utility;Archiving;
+Keywords=Backup;Sicherung;Wiederherstellen;restic;
+StartupWMClass=ImagepixelBackup

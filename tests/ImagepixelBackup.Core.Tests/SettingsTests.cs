@@ -37,7 +37,7 @@ public class SettingsTests
         Assert.Equal(@"E:\Backup", folder.RepositoryUrl);
     }
 
-    [Theory]
+    [SkippableTheory]
     [InlineData(@"C:\Daten", @"C:\Daten", true)]
     [InlineData(@"C:\Daten", @"C:\Daten\Backup", true)]
     [InlineData(@"C:\Daten\Backup\", @"c:\daten", true)]
@@ -50,6 +50,31 @@ public class SettingsTests
 
         Assert.Equal(expected, FolderRules.Overlap(first, second));
         Assert.Equal(expected, FolderRules.Overlap(second, first));
+    }
+
+    [SkippableTheory]
+    [InlineData("/Users/anna/Daten", "/Users/anna/Daten", true)]
+    [InlineData("/Users/anna/Daten", "/Users/anna/Daten/Backup", true)]
+    [InlineData("/Volumes/Backup/", "/Volumes/Backup/Daten", true)]
+    [InlineData("/Users/anna/Daten", "/Users/anna/Daten alt", false)]
+    [InlineData("/Users/anna/Daten", "/Volumes/Backup", false)]
+    [InlineData("/Users/anna/Daten", "", false)]
+    public void Folders_overlap_on_macOS_and_Linux_too(string first, string second, bool expected)
+    {
+        Skip.If(OperatingSystem.IsWindows(), "the paths are not Windows paths");
+
+        Assert.Equal(expected, FolderRules.Overlap(first, second));
+        Assert.Equal(expected, FolderRules.Overlap(second, first));
+    }
+
+    [Fact]
+    public void Only_Linux_tells_folders_apart_by_upper_and_lower_case()
+    {
+        var root = Path.GetTempPath();
+
+        Assert.Equal(
+            !OperatingSystem.IsLinux(),
+            FolderRules.Overlap(Path.Combine(root, "Daten"), Path.Combine(root, "daten", "Backup")));
     }
 
     [Fact]

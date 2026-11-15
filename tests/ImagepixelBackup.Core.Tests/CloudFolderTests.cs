@@ -94,6 +94,7 @@ public sealed class CloudFolderTests : IDisposable
         var oneDrive = Create(Profile, "Library", "CloudStorage", "OneDrive-Personal");
         var google = Create(Profile, "Library", "CloudStorage", "GoogleDrive-anna@example.com");
         var icloud = Create(Profile, "Library", "Mobile Documents", "com~apple~CloudDocs");
+        Create(Profile, "Library", "CloudStorage", "Dropbox");
 
         var found = Detector().Find();
 
@@ -107,6 +108,18 @@ public sealed class CloudFolderTests : IDisposable
     }
 
     [Fact]
+    public void MacOS_Google_Drive_is_found_with_its_personal_folder()
+    {
+        var account = Create(Profile, "Library", "CloudStorage", "GoogleDrive-anna@example.com");
+        var personal = Create(account, "Meine Ablage");
+        Create(account, "Geteilte Ablagen");
+
+        var found = Detector().Find();
+
+        Assert.Equal([new CloudFolder(CloudService.GoogleDrive, "Google Drive", personal)], found);
+    }
+
+    [Fact]
     public void Containing_matches_the_folder_and_everything_inside_but_not_its_neighbours()
     {
         var oneDrive = new CloudFolder(CloudService.OneDrive, "OneDrive", Create(Profile, "OneDrive"));
@@ -114,7 +127,12 @@ public sealed class CloudFolderTests : IDisposable
 
         Assert.Same(oneDrive, CloudFolderDetector.Containing(oneDrive.Path, folders));
         Assert.Same(oneDrive, CloudFolderDetector.Containing(Path.Combine(oneDrive.Path, "Bilder", "2026"), folders));
-        Assert.Same(oneDrive, CloudFolderDetector.Containing(oneDrive.Path.ToUpperInvariant() + Path.DirectorySeparatorChar, folders));
+        Assert.Same(oneDrive, CloudFolderDetector.Containing(oneDrive.Path + Path.DirectorySeparatorChar, folders));
+
+        // only Linux tells folders apart by upper and lower case
+        Assert.Equal(
+            !OperatingSystem.IsLinux(),
+            CloudFolderDetector.Containing(oneDrive.Path.ToUpperInvariant(), folders) is not null);
         Assert.Null(CloudFolderDetector.Containing(oneDrive.Path + " alt", folders));
         Assert.Null(CloudFolderDetector.Containing(Profile, folders));
     }

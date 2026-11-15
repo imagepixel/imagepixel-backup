@@ -63,7 +63,9 @@ public sealed class ResticClientTests : IDisposable
         var snapshots = await client.GetSnapshotsAsync();
         Assert.Equal(2, snapshots.Count);
         Assert.True(snapshots[0].Time <= snapshots[1].Time);
-        Assert.Equal(SourceFolder, snapshots[1].Paths.Single());
+
+        // macOS reports the temp folder below /private, where /var really lies
+        Assert.EndsWith(SourceFolder, snapshots[1].Paths.Single());
         Assert.StartsWith(snapshots[0].ShortId, first.SnapshotId);
 
         var target = Path.Combine(_root, "restored");
@@ -94,20 +96,23 @@ public sealed class ResticClientTests : IDisposable
     public async Task Mount_shows_the_snapshots_read_only_and_releases_the_lock_when_stopped()
     {
         Skip.If(_restic is null, "restic has not been built");
-        Skip.IfNot(OperatingSystem.IsWindows(), "mounting is only implemented for Windows");
-        Skip.IfNot(Directory.Exists(@"C:\Program Files (x86)\WinFsp"), "WinFsp is not installed");
+        Skip.IfNot(BackupManager.IsMountSupported, "mounting is not implemented for this system");
+        Skip.If(OperatingSystem.IsWindows() && !Directory.Exists(@"C:\Program Files (x86)\WinFsp"), "WinFsp is not installed");
+        Skip.If(OperatingSystem.IsLinux() && !File.Exists("/dev/fuse"), "FUSE is not available");
 
         var client = Client();
         await client.InitAsync();
         await client.BackupAsync(SourceFolder);
 
-        var letter = MountSession.FreeDriveLetters().Last();
-        var session = await client.MountAsync(letter, "Imagepixel Test");
+        // Windows: a drive letter, Linux: a folder
+        var mountpoint = OperatingSystem.IsWindows() ? MountSession.FreeDriveLetters().Last() : Path.Combine(_root, "mount");
+        var session = await client.MountAsync(mountpoint, "Imagepixel Test");
         try
         {
             Assert.True(session.IsRunning);
 
-            var snapshot = Directory.GetDirectories(session.RootPath).Single();
+            // Linux adds "latest", a link to the newest snapshot
+            var snapshot = Directory.GetDirectories(session.RootPath).Single(d => Path.GetFileName(d) != "latest");
             var file = Path.Combine(snapshot, "Dokumente", "Brief.txt");
             Assert.Equal("Version 1 äöü", File.ReadAllText(file));
 

@@ -28,7 +28,7 @@ public partial class FolderItemViewModel : ViewModelBase
         IsCloudFolder = cloud is not null;
 
         // the folder of a cloud service is shown under the name of the service
-        Name = cloud is not null && string.Equals(cloud.Path, folder.Path, StringComparison.OrdinalIgnoreCase)
+        Name = cloud is not null && string.Equals(cloud.Path, folder.Path, FolderRules.PathComparison)
             ? cloud.Name
             : System.IO.Path.GetFileName(folder.Path) is { Length: > 0 } name ? name : folder.Path;
 

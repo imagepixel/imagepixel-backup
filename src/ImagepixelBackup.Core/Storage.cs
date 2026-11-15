@@ -108,9 +108,19 @@ public static class FolderRules
 
         var a = WithSeparator(first);
         var b = WithSeparator(second);
-        return a.StartsWith(b, StringComparison.OrdinalIgnoreCase)
-            || b.StartsWith(a, StringComparison.OrdinalIgnoreCase);
+        return a.StartsWith(b, PathComparison) || b.StartsWith(a, PathComparison);
     }
+
+    /// <summary>
+    /// How paths are compared on this computer: Linux tells "Daten" and "daten" apart,
+    /// Windows and macOS take them for the same folder.
+    /// </summary>
+    public static StringComparison PathComparison =>
+        OperatingSystem.IsLinux() ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+
+    /// <summary>Compares paths as <see cref="PathComparison"/> does.</summary>
+    public static StringComparer PathComparer =>
+        OperatingSystem.IsLinux() ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase;
 
     // "C:\Daten" must not match "C:\Daten alt", so both paths end with a separator
     private static string WithSeparator(string path) =>

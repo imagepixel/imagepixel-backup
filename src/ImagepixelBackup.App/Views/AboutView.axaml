@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:ImagepixelBackup.App.ViewModels"
+             xmlns:local="using:ImagepixelBackup.App"
              x:Class="ImagepixelBackup.App.Views.AboutView"
              x:DataType="vm:AboutViewModel">
 
@@ -17,6 +18,10 @@
                 </StackPanel>
             </StackPanel>
 
+            <Border Classes="warning" IsVisible="{Binding IsBeta}">
+                <TextBlock Text="{x:Static local:Texts.BetaNote}" TextWrapping="Wrap" />
+            </Border>
+
             <Border Classes="card">
                 <StackPanel Spacing="8">
                     <TextBlock Classes="heading" Text="Anleitung" />
@@ -24,6 +29,17 @@
                                Text="Schritt für Schritt erklärt: Backup einrichten, Daten wiederherstellen, Cloud-Speicher sichern und was die Meldungen des Programms bedeuten." />
                     <Button Classes="accent" Content="Anleitung öffnen" Command="{Binding OpenLinkCommand}"
                             CommandParameter="{x:Static vm:AboutViewModel.GuideUrl}" />
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card" IsVisible="{Binding ShowStartAtLogin}">
+                <StackPanel Spacing="8">
+                    <TextBlock Classes="heading" Text="Im Hintergrund sichern" />
+                    <TextBlock Classes="subtle" Text="{x:Static local:Texts.StartAtLoginHint}" />
+                    <CheckBox Content="Bei der Anmeldung automatisch starten" IsChecked="{Binding StartAtLogin}" />
+                    <Border Classes="warning" IsVisible="{Binding HasStartAtLoginProblem}">
+                        <TextBlock Text="{Binding StartAtLoginProblem}" TextWrapping="Wrap" />
+                    </Border>
                 </StackPanel>
             </Border>
 
@@ -49,7 +65,7 @@
                                 CommandParameter="{x:Static vm:AboutViewModel.ResticUrl}" />
                     </StackPanel>
 
-                    <StackPanel Spacing="2">
+                    <StackPanel Spacing="2" IsVisible="{Binding ShowWinFsp}">
                         <TextBlock FontWeight="Medium" Text="WinFsp" />
                         <TextBlock Classes="subtle"
                                    Text="Zeigt das Backup als Laufwerk an. WinFsp - Windows File System Proxy, Copyright (C) Bill Zissimopoulos." />

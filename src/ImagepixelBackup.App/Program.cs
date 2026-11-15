@@ -22,6 +22,7 @@ sealed class Program
             return 0;
         }
 
+        NativeLibraries.BindEarly();
         App.Instance = instance;
         App.StartMinimized = args.Contains(MinimizedArgument, StringComparer.OrdinalIgnoreCase);
         return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);

@@ -100,9 +100,29 @@ public partial class DashboardViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Whether to point out that the application does not start by itself yet. The
+    /// schedule only runs while the application does, and on macOS and Linux nothing
+    /// starts it at login until the user agrees to that.
+    /// </summary>
+    public bool ShowStartAtLoginNote => _main.LoginItem is { IsEnabled: false };
+
+    /// <summary>Looks again whether the application starts at login.</summary>
+    public void RefreshStartAtLogin() => OnPropertyChanged(nameof(ShowStartAtLoginNote));
+
+    [RelayCommand]
+    private void StartAtLogin()
+    {
+        StatusLine = _main.EnableStartAtLogin() ?? Texts.StartsAtLoginNow;
+        RefreshStartAtLogin();
+    }
+
     public ObservableCollection<FolderItemViewModel> Folders { get; } = [];
 
     public bool HasNoFolders => Folders.Count == 0;
+
+    /// <summary>Whether this computer can show the backup as a drive.</summary>
+    public bool IsMountSupported => BackupManager.IsMountSupported;
 
     /// <summary>The cloud folders found on this computer.</summary>
     public IReadOnlyList<CloudFolder> CloudFolders => _main.CloudFolders;
@@ -176,7 +196,7 @@ public partial class DashboardViewModel : ViewModelBase
         AvailableCloudFolders.Clear();
         foreach (var cloud in CloudFolders)
         {
-            if (!Folders.Any(f => string.Equals(f.Path, cloud.Path, StringComparison.OrdinalIgnoreCase)))
+            if (!Folders.Any(f => string.Equals(f.Path, cloud.Path, FolderRules.PathComparison)))
             {
                 AvailableCloudFolders.Add(cloud);
             }
@@ -234,8 +254,8 @@ public partial class DashboardViewModel : ViewModelBase
             _mount = await Task.Run(() => _manager.MountAsync(Texts.ProductName));
             _mount.Exited += (_, _) => Dispatcher.UIThread.Post(OnMountEnded);
             IsMounted = true;
-            MountText = $"Laufwerk {_mount.Mountpoint} ist geöffnet";
-            StatusLine = $"Deine Sicherungen stehen als Laufwerk {_mount.Mountpoint} bereit – nur zum Lesen.";
+            MountText = Texts.DriveOpen(_mount.Mountpoint);
+            StatusLine = Texts.DriveReady(_mount.Mountpoint, _mount.RootPath);
             _main.OpenInFileManager(_mount.RootPath);
         }
         catch (Exception e)

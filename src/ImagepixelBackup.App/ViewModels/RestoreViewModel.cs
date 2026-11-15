@@ -70,6 +70,11 @@ public partial class RestoreViewModel : ViewModelBase
 
     public bool CanRestore => SelectedSnapshot is not null && !string.IsNullOrWhiteSpace(TargetFolder) && !IsBusy;
 
+    /// <summary>Whether this computer can show the backup as a drive.</summary>
+    public bool CanOpenAsDrive => BackupManager.IsMountSupported;
+
+    public string Hint => Texts.RestoreHint;
+
     private async Task LoadAsync()
     {
         IsLoading = true;

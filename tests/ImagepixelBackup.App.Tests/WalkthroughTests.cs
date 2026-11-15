@@ -13,7 +13,13 @@ namespace ImagepixelBackup.App.Tests;
 
 public static class TestAppBuilder
 {
-    public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<global::ImagepixelBackup.App.App>()
+    public static AppBuilder BuildAvaloniaApp()
+    {
+        NativeLibraries.BindEarly();
+        return Configure();
+    }
+
+    private static AppBuilder Configure() => AppBuilder.Configure<global::ImagepixelBackup.App.App>()
         .UseSkia()
         .WithInterFont()
         .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false });
@@ -39,7 +45,19 @@ public sealed class WalkthroughTests : IDisposable
 
     private string RestoreFolder => Path.Combine(_root, "Wiederhergestellt");
 
-    private static bool CanMount => OperatingSystem.IsWindows() && Directory.Exists(@"C:\Program Files (x86)\WinFsp");
+    private static bool CanMount => OperatingSystem.IsWindows()
+        ? Directory.Exists(@"C:\Program Files (x86)\WinFsp")
+        : OperatingSystem.IsLinux() && File.Exists("/dev/fuse");
+
+    private const string ProgramOnDiskImage = "/Volumes/Imagepixel Backup/Imagepixel Backup.app/Contents/MacOS/ImagepixelBackup";
+
+    private const string ProgramInApplications = "/Applications/Imagepixel Backup.app/Contents/MacOS/ImagepixelBackup";
+
+    /// <summary>
+    /// Starting at login as macOS has it, with its file in the temp folder: the tests
+    /// must not change what starts at login on the computer they run on.
+    /// </summary>
+    private MacLoginItem LoginItem => new(Path.Combine(_root, "LaunchAgents"));
 
     /// <summary>Stands in for the cloud storage a customer has set up on the computer.</summary>
     private CloudFolder[] CloudStorage =>
@@ -81,6 +99,11 @@ public sealed class WalkthroughTests : IDisposable
         var opened = new List<string>();
         main.PickFolder = _ => Task.FromResult(chosenFolder);
         main.OpenInFileManager = opened.Add;
+        if (main.LoginItem is not null)
+        {
+            main.LoginItem = LoginItem;
+        }
+
         window.Show();
 
         // --- first of all: back up or restore ---------------------------------------
@@ -193,6 +216,26 @@ public sealed class WalkthroughTests : IDisposable
         Assert.Contains("gesichert: 3 neue oder geänderte Dateien", dashboard.StatusLine);
         Capture(window, "06-uebersicht-ordner-gesichert");
 
+        // --- macOS and Linux: the schedule needs the application to start at login -----
+        Assert.Equal(!OperatingSystem.IsWindows(), dashboard.ShowStartAtLoginNote);
+        var program = ProgramOnDiskImage;
+        main.LoginItem = LoginItem;
+        main.ExecutablePath = () => program;
+        dashboard.RefreshStartAtLogin();
+        Assert.True(dashboard.ShowStartAtLoginNote);
+        Capture(window, "06a-uebersicht-autostart-hinweis");
+
+        // opened from its disk image, the application would be gone at the next login
+        dashboard.StartAtLoginCommand.Execute(null);
+        Assert.Contains("in den Ordner „Programme“", dashboard.StatusLine);
+        Assert.True(dashboard.ShowStartAtLoginNote);
+
+        program = ProgramInApplications;
+        dashboard.StartAtLoginCommand.Execute(null);
+        Assert.Contains("startet jetzt bei jeder Anmeldung", dashboard.StatusLine);
+        Assert.False(dashboard.ShowStartAtLoginNote);
+        Assert.Contains(ProgramInApplications, File.ReadAllText(main.LoginItem.FilePath));
+
         // --- storage figures ---------------------------------------------------------
         // a local folder has no booked size, so nothing is shown
         Assert.False(dashboard.HasStorageStatus);
@@ -288,7 +331,7 @@ public sealed class WalkthroughTests : IDisposable
             var drive = Assert.Single(opened);
             Capture(window, "09-uebersicht-laufwerk-geoeffnet");
 
-            var snapshot = Directory.GetDirectories(drive).Last();
+            var snapshot = SnapshotFolders(drive).Last();
             var file = Path.Combine(snapshot, "Dokumente", "Brief.txt");
             Assert.Equal("Sehr geehrte Damen und Herren äöü", File.ReadAllText(file));
             Assert.ThrowsAny<Exception>(() => File.Delete(file));
@@ -328,6 +371,11 @@ public sealed class WalkthroughTests : IDisposable
         var opened = new List<string>();
         main.PickFolder = _ => Task.FromResult(chosenFolder);
         main.OpenInFileManager = opened.Add;
+        if (main.LoginItem is not null)
+        {
+            main.LoginItem = LoginItem;
+        }
+
         window.Show();
 
         // --- restoring is a choice of its own on the first screen ---------------------
@@ -401,7 +449,7 @@ public sealed class WalkthroughTests : IDisposable
             Assert.False(restore.HasProblem, restore.Message);
             Assert.Contains("als Laufwerk", restore.Message);
             var drive = Assert.Single(opened);
-            Assert.Single(Directory.GetDirectories(drive));
+            Assert.Single(SnapshotFolders(drive));
             Capture(window, "23-wiederherstellen-laufwerk");
         }
 
@@ -431,11 +479,51 @@ public sealed class WalkthroughTests : IDisposable
         dashboard.ShowAboutCommand.Execute(null);
         var about = Assert.IsType<AboutViewModel>(main.CurrentPage);
         Assert.StartsWith("Version 0.", about.Version);
+
+        // only the version for macOS calls itself a beta, in the title of the window too
+        Assert.Equal(OperatingSystem.IsMacOS(), about.IsBeta);
+        Assert.Equal(OperatingSystem.IsMacOS(), about.Version.EndsWith(" Beta"));
+        Assert.Equal(OperatingSystem.IsMacOS(), window.Title!.EndsWith("(Beta)"));
         Capture(window, "11-info");
         about.OpenLinkCommand.Execute(AboutViewModel.WinFspUrl);
         Assert.Equal(AboutViewModel.WinFspUrl, opened.Last());
         about.BackCommand.Execute(null);
         Assert.Same(dashboard, main.CurrentPage);
+
+        // --- macOS: the info page turns starting at login on and off -------------------
+        var program = ProgramOnDiskImage;
+        main.LoginItem = LoginItem;
+        main.ExecutablePath = () => program;
+        dashboard.ShowAboutCommand.Execute(null);
+        about = Assert.IsType<AboutViewModel>(main.CurrentPage);
+        Assert.True(about.ShowStartAtLogin);
+        Assert.False(about.StartAtLogin);
+
+        // not from the disk image: the box is cleared again and says why
+        about.StartAtLogin = true;
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.False(about.StartAtLogin);
+        Assert.Contains("in den Ordner „Programme“", about.StartAtLoginProblem);
+        Assert.False(main.LoginItem.IsEnabled);
+        Capture(window, "12-info-autostart-nicht-moeglich");
+
+        program = ProgramInApplications;
+        about.StartAtLogin = true;
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.True(about.StartAtLogin);
+        Assert.Null(about.StartAtLoginProblem);
+        Assert.True(main.LoginItem.IsEnabled);
+        Capture(window, "13-info-autostart");
+        about.BackCommand.Execute(null);
+        Assert.False(dashboard.ShowStartAtLoginNote);
+
+        dashboard.ShowAboutCommand.Execute(null);
+        about = Assert.IsType<AboutViewModel>(main.CurrentPage);
+        Assert.True(about.StartAtLogin);
+        about.StartAtLogin = false;
+        Assert.False(main.LoginItem.IsEnabled);
+        about.BackCommand.Execute(null);
+        Assert.True(dashboard.ShowStartAtLoginNote);
 
         // leaving the application unmounts the drive and releases the lock
         await main.ShutdownAsync();
@@ -453,6 +541,10 @@ public sealed class WalkthroughTests : IDisposable
             await Task.Delay(50);
         }
     }
+
+    /// <summary>The folders of the saved states on the drive. Linux adds "latest", a link to the newest.</summary>
+    private static string[] SnapshotFolders(string drive) =>
+        [.. Directory.GetDirectories(drive).Where(d => Path.GetFileName(d) != "latest").Order()];
 
     private static void Capture(Window window, string name) => ScreenCapture.Save(window, "screenshots", name);
 

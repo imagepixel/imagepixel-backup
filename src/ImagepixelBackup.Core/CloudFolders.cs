@@ -47,7 +47,7 @@ public sealed class CloudFolderDetector
             }
 
             var full = Normalize(path);
-            if (!found.Any(f => string.Equals(f.Path, full, StringComparison.OrdinalIgnoreCase)))
+            if (!found.Any(f => string.Equals(f.Path, full, FolderRules.PathComparison)))
             {
                 found.Add(new CloudFolder(service, name, full));
             }
@@ -90,7 +90,8 @@ public sealed class CloudFolderDetector
         var cloudStorage = Path.Combine(UserProfile, "Library", "CloudStorage");
         if (Directory.Exists(cloudStorage))
         {
-            foreach (var directory in Directory.GetDirectories(cloudStorage))
+            // sorted, because the file system of macOS lists folders in no particular order
+            foreach (var directory in Directory.GetDirectories(cloudStorage).Order(StringComparer.OrdinalIgnoreCase))
             {
                 var name = Path.GetFileName(directory);
                 if (name.StartsWith("OneDrive", StringComparison.OrdinalIgnoreCase))
@@ -99,7 +100,11 @@ public sealed class CloudFolderDetector
                 }
                 else if (name.StartsWith("GoogleDrive", StringComparison.OrdinalIgnoreCase))
                 {
-                    Add(CloudService.GoogleDrive, "Google Drive", directory);
+                    // as on Windows: the personal folder, without the drives shared by others
+                    var personal = GoogleDriveRootFolders
+                        .Select(folder => Path.Combine(directory, folder))
+                        .FirstOrDefault(Directory.Exists);
+                    Add(CloudService.GoogleDrive, "Google Drive", personal ?? directory);
                 }
             }
         }
@@ -117,8 +122,8 @@ public sealed class CloudFolderDetector
     {
         var full = Normalize(path);
         return folders.FirstOrDefault(folder =>
-            string.Equals(full, folder.Path, StringComparison.OrdinalIgnoreCase)
-            || full.StartsWith(folder.Path + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
+            string.Equals(full, folder.Path, FolderRules.PathComparison)
+            || full.StartsWith(folder.Path + Path.DirectorySeparatorChar, FolderRules.PathComparison));
     }
 
     private static string Normalize(string path)

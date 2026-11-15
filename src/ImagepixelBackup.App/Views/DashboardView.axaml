@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:ImagepixelBackup.App.ViewModels"
              xmlns:core="using:ImagepixelBackup.Core"
+             xmlns:local="using:ImagepixelBackup.App"
              x:Class="ImagepixelBackup.App.Views.DashboardView"
              x:DataType="vm:DashboardViewModel"
              x:Name="Root">
@@ -42,6 +43,16 @@
                             <TextBlock Text="{Binding StorageWarning}" TextWrapping="Wrap" />
                         </Border>
                     </StackPanel>
+                </Border>
+
+                <!-- macOS and Linux: nothing starts the application at login until the user agrees -->
+                <Border Classes="warning" IsVisible="{Binding ShowStartAtLoginNote}">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="14">
+                        <TextBlock VerticalAlignment="Center" TextWrapping="Wrap"
+                                   Text="Imagepixel Backup startet noch nicht von selbst. Nach einem Neustart laufen die geplanten Sicherungen erst wieder, wenn du das Programm öffnest." />
+                        <Button Grid.Column="1" Content="Automatisch starten" VerticalAlignment="Center"
+                                Command="{Binding StartAtLoginCommand}" />
+                    </Grid>
                 </Border>
 
                 <Grid ColumnDefinitions="*,Auto">
@@ -131,12 +142,12 @@
 
                 <TextBlock Classes="heading" Text="Auf meine Sicherungen zugreifen" Margin="0,12,0,0" />
 
-                <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
-                    <Border Classes="card">
+                <!-- the drive is left out where the computer cannot show one -->
+                <UniformGrid Rows="1">
+                    <Border Classes="card" Margin="0,0,12,0" IsVisible="{Binding IsMountSupported}">
                         <StackPanel Spacing="8">
                             <TextBlock FontSize="15" FontWeight="SemiBold" Text="Als Laufwerk öffnen" />
-                            <TextBlock Classes="subtle"
-                                       Text="Zeigt alle gesicherten Stände wie eine Festplatte im Explorer. Du kannst Dateien ansehen und herauskopieren. Das Laufwerk ist schreibgeschützt, das Backup kann dabei nicht verändert werden." />
+                            <TextBlock Classes="subtle" Text="{x:Static local:Texts.DriveHint}" />
                             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0"
                                         IsVisible="{Binding IsNotMounted}">
                                 <Button Classes="accent" Content="Laufwerk öffnen"
@@ -148,14 +159,14 @@
                                 <TextBlock Text="{Binding MountText}" FontWeight="Medium"
                                            Foreground="{DynamicResource SuccessTextBrush}" />
                                 <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <Button Content="Im Explorer anzeigen" Command="{Binding ShowDriveCommand}" />
+                                    <Button Content="{x:Static local:Texts.ShowDrive}" Command="{Binding ShowDriveCommand}" />
                                     <Button Content="Trennen" Command="{Binding UnmountCommand}" />
                                 </StackPanel>
                             </StackPanel>
                         </StackPanel>
                     </Border>
 
-                    <Border Grid.Column="1" Classes="card">
+                    <Border Classes="card">
                         <StackPanel Spacing="8">
                             <TextBlock FontSize="15" FontWeight="SemiBold" Text="Ordner wiederherstellen" />
                             <TextBlock Classes="subtle"
@@ -163,7 +174,7 @@
                             <Button Content="Wiederherstellen …" Margin="0,4,0,0" Command="{Binding RestoreCommand}" />
                         </StackPanel>
                     </Border>
-                </Grid>
+                </UniformGrid>
 
             </StackPanel>
         </ScrollViewer>

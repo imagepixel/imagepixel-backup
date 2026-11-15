@@ -10,10 +10,81 @@ public static class Texts
 {
     public const string ProductName = "Imagepixel Backup";
 
-    /// <summary>What happens to files of a cloud service that are not stored on the computer.</summary>
-    public const string CloudHint =
-        "Dateien, die nur online liegen, werden zum Sichern heruntergeladen und danach wieder freigegeben. "
-        + "Was du mit „Immer auf diesem Gerät behalten“ markiert hast, bleibt auf der Festplatte.";
+    /// <summary>
+    /// Whether this version is a beta. The one for macOS is: it is built and tested by
+    /// the workflow only and has not been used on a Mac by a person yet.
+    /// </summary>
+    public static bool IsBeta => OperatingSystem.IsMacOS();
+
+    /// <summary>The title of the window, which tells a beta apart.</summary>
+    public static string WindowTitle => IsBeta ? ProductName + " (Beta)" : ProductName;
+
+    /// <summary>What a beta means for the customer.</summary>
+    public const string BetaNote =
+        "Die Mac-Version ist eine Beta: Sie ist neu und noch nicht ausreichend auf Macs erprobt. "
+        + "Prüfe nach dem ersten Backup, ob sich deine Daten wiederherstellen lassen, "
+        + "und verlasse dich vorerst nicht allein auf dieses Backup.";
+
+    /// <summary>
+    /// What happens to files of a cloud service that are not stored on the computer.
+    /// Freeing them up again after the backup is only implemented for Windows.
+    /// </summary>
+    public static string CloudHint => OperatingSystem.IsWindows()
+        ? "Dateien, die nur online liegen, werden zum Sichern heruntergeladen und danach wieder freigegeben. "
+          + "Was du mit „Immer auf diesem Gerät behalten“ markiert hast, bleibt auf der Festplatte."
+        : "Dateien, die nur online liegen, werden zum Sichern heruntergeladen und bleiben danach auf diesem Rechner. "
+          + "Achte darauf, dass genug Speicherplatz frei ist.";
+
+    /// <summary>An example of where a backup on an external disk could be.</summary>
+    public static string LocalPathExample =>
+        OperatingSystem.IsWindows() ? @"z. B. E:\Backup"
+        : OperatingSystem.IsMacOS() ? "z. B. /Volumes/Backup"
+        : $"z. B. {LinuxMediaFolder}/{Environment.UserName}/Backup";
+
+    // where a USB disk shows up: Ubuntu uses /media, CachyOS and other Arch systems /run/media
+    private static string LinuxMediaFolder => System.IO.Directory.Exists("/run/media") ? "/run/media" : "/media";
+
+    /// <summary>What the program is called that shows folders and files.</summary>
+    public static string FileManager => OperatingSystem.IsWindows() ? "Explorer" : "Dateimanager";
+
+    /// <summary>Where the application waits while its window is closed.</summary>
+    public static string TrayPlace => OperatingSystem.IsMacOS() ? "in der Menüleiste" : "im Infobereich";
+
+    /// <summary>What the restore page says about getting single files.</summary>
+    public static string RestoreHint => BackupManager.IsMountSupported
+        ? $"Wähle den Stand aus, den du als Ganzes zurückholen möchtest. Brauchst du nur einzelne Dateien, öffne das Backup als Laufwerk und kopiere sie im {FileManager} heraus."
+        : "Wähle den Stand aus, den du zurückholen möchtest, und einen Ordner, in den er gelegt wird.";
+
+    /// <summary>What opening the backup as a drive does.</summary>
+    public static string DriveHint =>
+        $"Zeigt alle gesicherten Stände wie eine Festplatte im {FileManager}. Du kannst Dateien ansehen und herauskopieren. "
+        + "Das Laufwerk ist schreibgeschützt, das Backup kann dabei nicht verändert werden.";
+
+    public static string ShowDrive => $"Im {FileManager} anzeigen";
+
+    /// <summary>Says that the drive is open. Only Windows gives it a letter worth naming.</summary>
+    public static string DriveOpen(string mountpoint) =>
+        OperatingSystem.IsWindows() ? $"Laufwerk {mountpoint} ist geöffnet" : "Das Laufwerk ist geöffnet";
+
+    public static string DriveReady(string mountpoint, string folder) => OperatingSystem.IsWindows()
+        ? $"Deine Sicherungen stehen als Laufwerk {mountpoint} bereit – nur zum Lesen."
+        : $"Deine Sicherungen stehen als Laufwerk bereit – nur zum Lesen. Du findest sie im {FileManager} unter {folder}.";
+
+    /// <summary>What starting at login means on this system.</summary>
+    public static string StartAtLoginHint =>
+        $"Damit deine Sicherungen ohne dein Zutun laufen, kann das Programm bei jeder Anmeldung starten. Es wartet dann {TrayPlace}.";
+
+    public static string StartsAtLoginNow =>
+        $"Imagepixel Backup startet jetzt bei jeder Anmeldung von selbst und wartet {TrayPlace}.";
+
+    /// <summary>macOS: why the application cannot start at login from where it currently lies.</summary>
+    public const string MoveToApplications =
+        "Bitte ziehe Imagepixel Backup zuerst in den Ordner „Programme“ und öffne es von dort. "
+        + "Erst dann kann es bei der Anmeldung von selbst starten.";
+
+    /// <summary>The same for a program that was only unpacked to try it.</summary>
+    public const string InstallFirst =
+        "Bitte installiere Imagepixel Backup zuerst. Von seinem jetzigen Ort aus kann es bei der Anmeldung nicht von selbst starten.";
 
     private static readonly CultureInfo German = CultureInfo.GetCultureInfo("de-DE");
 
@@ -109,7 +180,8 @@ public static class Texts
             return "Der Speicher ist nicht erreichbar. Besteht eine Internetverbindung?";
         }
 
-        if (Has("cannot find the path") || Has("cannot find the file") || error is System.IO.DirectoryNotFoundException)
+        if (Has("cannot find the path") || Has("cannot find the file") || Has("no such file or directory")
+            || error is System.IO.DirectoryNotFoundException)
         {
             return "Der Ordner wurde nicht gefunden. Ist die Festplatte angeschlossen?";
         }
@@ -117,6 +189,16 @@ public static class Texts
         if (Has("winfsp"))
         {
             return "Zum Öffnen als Laufwerk fehlt die Komponente WinFsp. Bitte installiere " + ProductName + " erneut.";
+        }
+
+        if (Has("fusermount") || Has("/dev/fuse"))
+        {
+            return "Zum Öffnen als Laufwerk fehlt die Komponente FUSE (Paket „fuse3“). Bitte installiere " + ProductName + " erneut.";
+        }
+
+        if (error is System.Security.SecurityException)
+        {
+            return "Der Schlüsselbund dieses Rechners ist nicht erreichbar, deshalb kann das Passwort nicht sicher abgelegt werden. " + message;
         }
 
         if (error is System.ComponentModel.Win32Exception || Has("restic") && Has("not found"))

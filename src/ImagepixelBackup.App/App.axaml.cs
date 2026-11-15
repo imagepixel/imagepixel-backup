@@ -42,6 +42,7 @@ public partial class App : Application
                 ResticClient.FindRestic() ?? "restic");
 
             _viewModel = new MainViewModel(manager);
+            _viewModel.RefreshStartAtLogin();
             _window = new MainWindow { DataContext = _viewModel };
             _window.Closing += (_, e) =>
             {
@@ -49,6 +50,19 @@ public partial class App : Application
                 {
                     e.Cancel = true;
                     _window.Hide();
+                }
+            };
+
+            // "Quit" in the menu or the Dock of macOS, and logging off on either system,
+            // end the application: the window must close then instead of hiding, or it
+            // would keep the computer from shutting down. Running backups are stopped
+            // and the drive is told to unmount; neither is waited for.
+            desktop.ShutdownRequested += (_, _) =>
+            {
+                if (!_exiting)
+                {
+                    _exiting = true;
+                    _ = _viewModel.ShutdownAsync();
                 }
             };
 
@@ -61,6 +75,18 @@ public partial class App : Application
 
             CreateTrayIcon(desktop);
             Instance?.OnShowRequested(() => Avalonia.Threading.Dispatcher.UIThread.Post(ShowWindow));
+
+            // macOS: a click on the icon in the Dock brings the window back
+            if (TryGetFeature(typeof(IActivatableLifetime)) is IActivatableLifetime activatable)
+            {
+                activatable.Activated += (_, e) =>
+                {
+                    if (e.Kind == ActivationKind.Reopen)
+                    {
+                        ShowWindow();
+                    }
+                };
+            }
         }
 
         base.OnFrameworkInitializationCompleted();

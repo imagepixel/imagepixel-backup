@@ -191,14 +191,17 @@ public sealed class ResticClient(string resticPath, RepositoryAccess access)
 
     /// <summary>
     /// Mounts the repository as a read-only volume. On Windows the mountpoint is an
-    /// unused drive letter such as "R:".
+    /// unused drive letter such as "R:", on Linux an empty folder.
     /// </summary>
     public Task<MountSession> MountAsync(string mountpoint, string volumeName, CancellationToken cancellationToken = default) =>
         MountSession.StartAsync(this, mountpoint, volumeName, cancellationToken);
 
-    internal ProcessStartInfo CreateStartInfo(IEnumerable<string> arguments, string? workingDirectory)
+    /// <param name="arguments">The arguments of the program.</param>
+    /// <param name="workingDirectory">The folder to start the program in, if it matters.</param>
+    /// <param name="program">A program to start in place of restic, with the access data of restic.</param>
+    internal ProcessStartInfo CreateStartInfo(IEnumerable<string> arguments, string? workingDirectory, string? program = null)
     {
-        var startInfo = new ProcessStartInfo(ResticPath)
+        var startInfo = new ProcessStartInfo(program ?? ResticPath)
         {
             UseShellExecute = false,
             CreateNoWindow = true,

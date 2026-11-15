@@ -24,8 +24,22 @@ public sealed class BackupManager(
     public AppConfig Config { get; } = store.Load();
 
     /// <summary>Whether a storage has been set up and its password is available.</summary>
-    public bool IsConnected =>
-        Config.Storage is not null && secrets.Get(SecretNames.RepositoryPassword) is not null;
+    public bool IsConnected
+    {
+        get
+        {
+            try
+            {
+                return Config.Storage is not null && secrets.Get(SecretNames.RepositoryPassword) is not null;
+            }
+            catch (System.Security.SecurityException)
+            {
+                // The keyring cannot be reached. The application then asks for the
+                // storage and the password again instead of failing to start.
+                return false;
+            }
+        }
+    }
 
     /// <summary>
     /// Checks the storage and remembers it if the password opens the repository.
@@ -110,7 +124,7 @@ public sealed class BackupManager(
     public BackupFolder AddFolder(string path)
     {
         var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
-        var existing = Config.Folders.FirstOrDefault(f => string.Equals(f.Path, full, StringComparison.OrdinalIgnoreCase));
+        var existing = Config.Folders.FirstOrDefault(f => string.Equals(f.Path, full, FolderRules.PathComparison));
         if (existing is not null)
         {
             return existing;
@@ -201,15 +215,36 @@ public sealed class BackupManager(
         CancellationToken cancellationToken = default) =>
         CreateClient().RestoreAsync(snapshotId, targetFolder, progress, cancellationToken);
 
-    /// <summary>Mounts the repository read-only at the first drive letter that is free.</summary>
+    /// <summary>
+    /// Whether the backup can be opened as a drive on this computer. On macOS this
+    /// would need additional software the user has to install and approve, which the
+    /// application does not ask for yet.
+    /// </summary>
+    public static bool IsMountSupported => OperatingSystem.IsWindows() || OperatingSystem.IsLinux();
+
+    /// <summary>
+    /// Mounts the repository read-only: on Windows at the first drive letter that is
+    /// free, on Linux at a folder of the user.
+    /// </summary>
     public async Task<MountSession> MountAsync(string volumeName, CancellationToken cancellationToken = default)
     {
-        if (!OperatingSystem.IsWindows())
+        if (!IsMountSupported)
         {
-            throw new PlatformNotSupportedException("Mounting is only implemented for Windows so far.");
+            throw new PlatformNotSupportedException("Mounting is only implemented for Windows and Linux so far.");
         }
 
         var client = CreateClient();
+        if (OperatingSystem.IsLinux())
+        {
+            var mountpoint = MountSession.LinuxMountpoint();
+            if (MountSession.IsMounted(mountpoint))
+            {
+                MountSession.ReleaseStale(mountpoint);
+            }
+
+            return await client.MountAsync(mountpoint, volumeName, cancellationToken);
+        }
+
         foreach (var letter in MountSession.FreeDriveLetters())
         {
             try
