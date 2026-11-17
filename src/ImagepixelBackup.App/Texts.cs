@@ -15,12 +15,13 @@ public static class Texts
     /// changed. The full text is the file NUTZUNGSHINWEISE.md. The user confirms the
     /// notes once at the first start; changing this value asks everyone once more.
     /// </summary>
-    public const string TermsVersion = "2026-11-17";
+    public const string TermsVersion = "2026-11-17-2";
 
     /// <summary>The short form of the notes, shown once at the first start.</summary>
     public const string TermsSoftware =
         "Imagepixel Backup ist kostenlose, quelloffene Software und wird ohne Gewährleistung bereitgestellt. "
-        + "Für Fehler des Programms und für den Verlust von Daten haftet Imagepixel nur bei Vorsatz und grober Fahrlässigkeit.";
+        + "Du nutzt das Programm auf eigene Gefahr. Für Fehler des Programms und für den Verlust von Daten haftet Imagepixel nur dort, "
+        + "wo das Gesetz es zwingend vorschreibt, vor allem bei Vorsatz und grober Fahrlässigkeit. Die Fälle stehen in den Nutzungshinweisen.";
 
     public const string TermsStorage =
         "Kein Speicher ist vor jedem Ausfall sicher, auch Imagepixel Storage nicht. Verlass dich bei wichtigen Daten "
@@ -29,11 +30,11 @@ public static class Texts
     public const string TermsPassword =
         "Dein Passwort kennst nur du. Ohne das Passwort kommt niemand mehr an deine Sicherungen, auch Imagepixel nicht.";
 
-    public const string TermsConfirm = "Ich habe die Nutzungshinweise gelesen und bin damit einverstanden.";
+    public const string TermsConfirm = "Ich bin mit den Nutzungshinweisen einverstanden.";
 
     /// <summary>What the info page says about the notes the user confirmed.</summary>
     public const string TermsReminder =
-        "Imagepixel Backup ist kostenlose, quelloffene Software ohne Gewährleistung. Die Hinweise zur Nutzung und Haftung, "
+        "Imagepixel Backup ist kostenlose, quelloffene Software ohne Gewährleistung; du nutzt sie auf eigene Gefahr. Die Hinweise zur Nutzung und Haftung, "
         + "die du beim ersten Start bestätigt hast, kannst du hier nachlesen.";
 
     /// <summary>What the guide explains. Linux has no cloud storage to back up.</summary>

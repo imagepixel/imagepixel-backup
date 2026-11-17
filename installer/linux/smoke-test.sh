@@ -9,7 +9,7 @@
 # Must run as root on a system that may be changed, such as a container:
 #
 #   docker run --rm -v "$PWD:/src:ro" ubuntu:rolling bash /src/installer/linux/smoke-test.sh \
-#       /src/artifacts/linux/imagepixel-backup_0.1.1_amd64.deb
+#       /src/artifacts/linux/imagepixel-backup_0.1.2_amd64.deb
 set -euo pipefail
 
 package="$(realpath "$1")"
