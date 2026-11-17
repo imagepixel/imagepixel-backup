@@ -49,6 +49,19 @@ public static class Texts
     // where a USB disk shows up: Ubuntu uses /media, CachyOS and other Arch systems /run/media
     private static string LinuxMediaFolder => System.IO.Directory.Exists("/run/media") ? "/run/media" : "/media";
 
+    /// <summary>An example of a folder to restore into, written the way this system writes paths.</summary>
+    public static string RestorePathExample => OperatingSystem.IsWindows()
+        ? @"z. B. C:\Wiederhergestellt"
+        : "z. B. " + System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Wiederhergestellt");
+
+    /// <summary>A number of files, for example "1 Datei" or "14 Dateien".</summary>
+    public static string Files(long count) => count == 1 ? "1 Datei" : $"{count} Dateien";
+
+    /// <summary>What a backup found to save, for example "14 neue oder geänderte Dateien".</summary>
+    public static string ChangedFiles(long count) =>
+        count == 1 ? "1 neue oder geänderte Datei" : $"{count} neue oder geänderte Dateien";
+
     /// <summary>What the program is called that shows folders and files.</summary>
     public static string FileManager => OperatingSystem.IsWindows() ? "Explorer" : "Dateimanager";
 

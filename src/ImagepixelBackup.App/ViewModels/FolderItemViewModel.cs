@@ -114,7 +114,7 @@ public partial class FolderItemViewModel : ViewModelBase
             last = "Zuletzt gesichert: " + Texts.Day(success, now);
             if (Folder.LastWarnings > 0)
             {
-                last += $" ({Folder.LastWarnings} Dateien nicht lesbar)";
+                last += $" ({Texts.Files(Folder.LastWarnings)} nicht lesbar)";
             }
         }
         else
@@ -149,17 +149,20 @@ public partial class FolderItemViewModel : ViewModelBase
         {
             ProgressPercent = p.Fraction * 100;
             ProgressText = p.TotalBytes > 0
-                ? $"{Texts.Bytes(p.BytesDone)} von {Texts.Bytes(p.TotalBytes)} · {p.FilesDone} von {p.TotalFiles} Dateien"
+                ? $"{Texts.Bytes(p.BytesDone)} von {Texts.Bytes(p.TotalBytes)} · {p.FilesDone} von {Texts.Files(p.TotalFiles)}"
                 : "Dateien werden gezählt …";
         });
 
         try
         {
             var summary = await Task.Run(() => _manager.BackupAsync(Folder, progress, _cancellation.Token));
-            var freed = summary.FilesFreedUp > 0
-                ? $" {summary.FilesFreedUp} Dateien liegen wieder nur online."
-                : "";
-            _dashboard.StatusLine = $"„{Name}“ gesichert: {summary.FilesNew + summary.FilesChanged} neue oder geänderte Dateien, {Texts.Bytes(summary.BytesUploaded)} übertragen.{freed}";
+            var freed = summary.FilesFreedUp switch
+            {
+                0 => "",
+                1 => " 1 Datei liegt wieder nur online.",
+                _ => $" {summary.FilesFreedUp} Dateien liegen wieder nur online.",
+            };
+            _dashboard.StatusLine = $"„{Name}“ gesichert: {Texts.ChangedFiles(summary.FilesNew + summary.FilesChanged)}, {Texts.Bytes(summary.BytesUploaded)} übertragen.{freed}";
             _ = _dashboard.RefreshStorageStatusAsync();
         }
         catch (OperationCanceledException)

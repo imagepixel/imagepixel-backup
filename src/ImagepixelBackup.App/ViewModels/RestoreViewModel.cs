@@ -22,7 +22,7 @@ public sealed class SnapshotItemViewModel(Snapshot snapshot)
     public string Time { get; } = snapshot.Time.ToLocalTime().ToString("dd.MM.yyyy, HH:mm") + " Uhr";
 
     public string Details { get; } = snapshot.Summary is { } summary
-        ? $"{summary.TotalFiles} Dateien · {Texts.Bytes(summary.TotalBytes)}"
+        ? $"{Texts.Files(summary.TotalFiles)} · {Texts.Bytes(summary.TotalBytes)}"
         : "";
 }
 

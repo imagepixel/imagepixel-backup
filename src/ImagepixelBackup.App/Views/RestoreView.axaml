@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:ImagepixelBackup.App.ViewModels"
+             xmlns:local="using:ImagepixelBackup.App"
              x:Class="ImagepixelBackup.App.Views.RestoreView"
              x:DataType="vm:RestoreViewModel">
 
@@ -39,7 +40,7 @@
         <StackPanel Grid.Row="2" Spacing="10">
             <TextBlock FontWeight="Medium" Text="Wohin soll wiederhergestellt werden?" />
             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-                <TextBox Text="{Binding TargetFolder}" PlaceholderText="z. B. C:\Wiederhergestellt" />
+                <TextBox Text="{Binding TargetFolder}" PlaceholderText="{x:Static local:Texts.RestorePathExample}" />
                 <Button Grid.Column="1" Content="Auswählen …" Command="{Binding BrowseCommand}" />
                 <Button Grid.Column="2" Classes="accent" Content="Wiederherstellen"
                         Command="{Binding RestoreCommand}" IsEnabled="{Binding CanRestore}" />
