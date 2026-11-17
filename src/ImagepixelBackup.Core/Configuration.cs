@@ -45,6 +45,15 @@ public sealed class AppConfig
     public StorageSettings? Storage { get; set; }
 
     public List<BackupFolder> Folders { get; set; } = [];
+
+    /// <summary>
+    /// The version of the notes on use and liability the user confirmed, or null if
+    /// they have not confirmed any yet.
+    /// </summary>
+    public string? TermsAccepted { get; set; }
+
+    /// <summary>When <see cref="TermsAccepted"/> was confirmed.</summary>
+    public DateTimeOffset? TermsAcceptedAt { get; set; }
 }
 
 /// <summary>Loads and saves <see cref="AppConfig"/> as a JSON file in the user's profile.</summary>

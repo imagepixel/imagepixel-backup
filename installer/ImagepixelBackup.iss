@@ -22,7 +22,8 @@ AppSupportURL=https://github.com/imagepixel/imagepixel-backup
 DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
-LicenseFile=..\LICENSE
+; No licence page: the application asks once at its first start to confirm the
+; notes on use and liability, the same way on every system.
 OutputDir=..\artifacts\installer
 OutputBaseFilename=ImagepixelBackup-Setup-{#AppVersion}
 SetupIconFile=..\src\ImagepixelBackup.App\Assets\app.ico
@@ -60,6 +61,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "..\artifacts\publish\*"; DestDir: "{app}"; Excludes: "*.pdb"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
 Source: "..\THIRD-PARTY-NOTICES.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\NUTZUNGSHINWEISE.md"; DestDir: "{app}"; Flags: ignoreversion
 ; the unmodified installer of the WinFsp project
 Source: "..\.build\winfsp\{#WinFspMsi}"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: NeedsWinFsp
 

@@ -157,6 +157,17 @@ public sealed class BackupManager(
         }
     }
 
+    /// <summary>Whether the user confirmed this version of the notes on use and liability.</summary>
+    public bool HasAcceptedTerms(string version) => Config.TermsAccepted == version;
+
+    /// <summary>Remembers that the user confirmed this version of the notes, and when.</summary>
+    public void AcceptTerms(string version)
+    {
+        Config.TermsAccepted = version;
+        Config.TermsAcceptedAt = DateTimeOffset.Now;
+        Save();
+    }
+
     /// <summary>Backs up one folder and records the outcome. Backups run one at a time.</summary>
     public async Task<BackupSummary> BackupAsync(
         BackupFolder folder,

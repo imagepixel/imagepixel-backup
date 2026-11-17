@@ -6,7 +6,10 @@ using ImagepixelBackup.Core;
 
 namespace ImagepixelBackup.App.ViewModels;
 
-/// <summary>The window: shows the setup until a storage is connected, then the overview.</summary>
+/// <summary>
+/// The window: asks once to confirm the notes on use and liability, then shows the
+/// setup until a storage is connected, and the overview from then on.
+/// </summary>
 public partial class MainViewModel : ViewModelBase
 {
     private readonly BackupManager _manager;
@@ -21,7 +24,32 @@ public partial class MainViewModel : ViewModelBase
         _manager = manager;
         LoadStorageStatus = () => manager.GetStorageStatusAsync();
         CloudFolders = cloudFolders ?? CloudFolderDetector.Detect();
-        CurrentPage = manager.IsConnected ? Dashboard : new SetupViewModel(manager, this);
+
+        if (manager.HasAcceptedTerms(Texts.TermsVersion))
+        {
+            CurrentPage = StartPage;
+        }
+        else
+        {
+            // A backup that is already set up keeps its schedule while the notes wait
+            // to be confirmed: the overview, which runs the schedule, exists from the start.
+            if (manager.IsConnected)
+            {
+                _ = Dashboard;
+            }
+
+            CurrentPage = new TermsViewModel(this);
+        }
+    }
+
+    /// <summary>Where the application starts: the overview, or the setup while no storage is connected.</summary>
+    private ViewModelBase StartPage => _manager.IsConnected ? Dashboard : new SetupViewModel(_manager, this);
+
+    /// <summary>Remembers that the user confirmed the notes on use and liability, and goes on.</summary>
+    public void AcceptTerms()
+    {
+        _manager.AcceptTerms(Texts.TermsVersion);
+        CurrentPage = StartPage;
     }
 
     [ObservableProperty]
@@ -90,6 +118,9 @@ public partial class MainViewModel : ViewModelBase
     }
 
     public DashboardViewModel Dashboard => _dashboard ??= new DashboardViewModel(_manager, this);
+
+    /// <summary>Whether the overview exists, and with it the schedule that runs the backups.</summary>
+    public bool IsScheduleRunning => _dashboard is not null;
 
     /// <summary>Shows the overview, optionally starting the backups that are due without waiting for the schedule.</summary>
     public void ShowDashboard(bool startDueBackups = false)

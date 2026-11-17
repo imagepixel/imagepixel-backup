@@ -70,6 +70,13 @@ public sealed class GuidePictures : IDisposable
         var window = new MainWindow { DataContext = main };
         window.Show();
 
+        // the very first start: the notes on use and liability, ticked as before going on
+        var terms = Assert.IsType<TermsViewModel>(main.CurrentPage);
+        terms.Confirmed = true;
+        window.Height = 500;
+        ScreenCapture.Save(window, "guide", "nutzungshinweise");
+        terms.ContinueCommand.Execute(null);
+
         var setup = Assert.IsType<SetupViewModel>(main.CurrentPage);
         window.Height = 330;
         ScreenCapture.Save(window, "guide", "start");
@@ -99,6 +106,7 @@ public sealed class GuidePictures : IDisposable
         new ConfigStore(Path.Combine(_root, "settings")).Save(new AppConfig
         {
             Storage = new StorageSettings { Kind = StorageKind.ImagepixelStorage, Bucket = Bucket, AccessKeyId = "ABCDEFGHIJKLMNOPQRST" },
+            TermsAccepted = Texts.TermsVersion,
             Folders =
             {
                 new BackupFolder { Path = Documents, LastAttempt = now.AddMinutes(-25), LastSuccess = now.AddMinutes(-25) },
@@ -166,6 +174,7 @@ public sealed class GuidePictures : IDisposable
         await manager.BackupAsync(folder);
         File.WriteAllText(Path.Combine(source, "Notizen.txt"), "Neu");
         await manager.BackupAsync(folder);
+        manager.AcceptTerms(Texts.TermsVersion);
 
         var main = new MainViewModel(manager, []);
         var window = new MainWindow { DataContext = main, Height = 560 };

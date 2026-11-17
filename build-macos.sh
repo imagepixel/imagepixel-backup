@@ -54,6 +54,7 @@ for rid in osx-arm64 osx-x64; do
     cp "$out/app.icns" "$app/Contents/Resources/app.icns"
     cp "$root/LICENSE" "$app/Contents/Resources/LICENSE.txt"
     cp "$root/THIRD-PARTY-NOTICES.txt" "$app/Contents/Resources/THIRD-PARTY-NOTICES.txt"
+    cp "$root/NUTZUNGSHINWEISE.md" "$app/Contents/Resources/NUTZUNGSHINWEISE.md"
     sed "s/@VERSION@/$version/g" "$root/installer/macos/Info.plist" > "$app/Contents/Info.plist"
     chmod +x "$app/Contents/MacOS/ImagepixelBackup" "$app/Contents/MacOS/restic"
 

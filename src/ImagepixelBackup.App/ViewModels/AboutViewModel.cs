@@ -9,6 +9,7 @@ public partial class AboutViewModel : ViewModelBase
 {
     public const string SourceUrl = "https://github.com/imagepixel/imagepixel-backup";
     public const string GuideUrl = "https://github.com/imagepixel/imagepixel-backup/wiki";
+    public const string TermsUrl = "https://github.com/imagepixel/imagepixel-backup/blob/main/NUTZUNGSHINWEISE.md";
     public const string ResticUrl = "https://restic.net";
     public const string WinFspUrl = "https://github.com/winfsp/winfsp";
 

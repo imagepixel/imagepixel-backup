@@ -49,6 +49,15 @@
             </Border>
 
             <Border Classes="card">
+                <StackPanel Spacing="8">
+                    <TextBlock Classes="heading" Text="Nutzungshinweise" />
+                    <TextBlock Classes="subtle" Text="{x:Static local:Texts.TermsReminder}" />
+                    <Button Content="Nutzungshinweise öffnen" Command="{Binding OpenLinkCommand}"
+                            CommandParameter="{x:Static vm:AboutViewModel.TermsUrl}" />
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
                 <StackPanel Spacing="12">
                     <TextBlock Classes="heading" Text="Enthaltene Komponenten" />
 

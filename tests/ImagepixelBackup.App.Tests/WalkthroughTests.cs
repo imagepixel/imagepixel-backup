@@ -111,7 +111,24 @@ public sealed class WalkthroughTests : IDisposable
 
         window.Show();
 
-        // --- first of all: back up or restore ---------------------------------------
+        // --- once, before anything else: the notes on use and liability ---------------
+        var terms = Assert.IsType<TermsViewModel>(main.CurrentPage);
+        Assert.False(main.IsScheduleRunning);
+        Assert.False(terms.ContinueCommand.CanExecute(null));
+        Capture(window, "00a-nutzungshinweise");
+
+        terms.OpenTermsCommand.Execute(null);
+        Assert.Equal([AboutViewModel.TermsUrl], opened);
+        opened.Clear();
+
+        terms.Confirmed = true;
+        Assert.True(terms.ContinueCommand.CanExecute(null));
+        terms.ContinueCommand.Execute(null);
+        Assert.Equal(Texts.TermsVersion, manager.Config.TermsAccepted);
+        Assert.NotNull(manager.Config.TermsAcceptedAt);
+        Assert.Equal(Texts.TermsVersion, new ConfigStore(DataFolder).Load().TermsAccepted);
+
+        // --- then: back up or restore -------------------------------------------------
         var setup = Assert.IsType<SetupViewModel>(main.CurrentPage);
         Assert.False(setup.HasMode);
         Assert.False(setup.CanChooseDestination);
@@ -392,6 +409,11 @@ public sealed class WalkthroughTests : IDisposable
 
         window.Show();
 
+        // --- a new computer asks to confirm the notes on use and liability, too --------
+        var terms = Assert.IsType<TermsViewModel>(main.CurrentPage);
+        terms.Confirmed = true;
+        terms.ContinueCommand.Execute(null);
+
         // --- restoring is a choice of its own on the first screen ---------------------
         var setup = Assert.IsType<SetupViewModel>(main.CurrentPage);
         setup.ChooseModeCommand.Execute("Restore");
@@ -504,6 +526,10 @@ public sealed class WalkthroughTests : IDisposable
         Capture(window, "11-info");
         about.OpenLinkCommand.Execute(AboutViewModel.WinFspUrl);
         Assert.Equal(AboutViewModel.WinFspUrl, opened.Last());
+
+        // the notes the customer confirmed at the first start can be read again here
+        about.OpenLinkCommand.Execute(AboutViewModel.TermsUrl);
+        Assert.Equal(AboutViewModel.TermsUrl, opened.Last());
         about.BackCommand.Execute(null);
         Assert.Same(dashboard, main.CurrentPage);
 
@@ -547,6 +573,35 @@ public sealed class WalkthroughTests : IDisposable
         Assert.Empty(Directory.GetFiles(Path.Combine(StorageFolder, "locks")));
 
         window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Backup_that_is_set_up_keeps_its_schedule_until_the_notes_are_confirmed()
+    {
+        // a computer that was set up by a version without the notes, as after an update
+        new ConfigStore(DataFolder).Save(new AppConfig
+        {
+            Storage = new StorageSettings { Kind = StorageKind.LocalFolder, LocalPath = StorageFolder },
+        });
+        var secrets = new MemorySecretStore();
+        secrets.Set(SecretNames.RepositoryPassword, Password);
+
+        var main = new MainViewModel(new BackupManager(new ConfigStore(DataFolder), secrets, "restic"), []);
+
+        // the notes come first, but the backups do not wait for the customer to open the window
+        var terms = Assert.IsType<TermsViewModel>(main.CurrentPage);
+        Assert.True(main.IsScheduleRunning);
+        Assert.False(terms.ContinueCommand.CanExecute(null));
+
+        terms.Confirmed = true;
+        terms.ContinueCommand.Execute(null);
+        Assert.IsType<DashboardViewModel>(main.CurrentPage);
+        await main.ShutdownAsync();
+
+        // the next start does not ask again
+        var next = new MainViewModel(new BackupManager(new ConfigStore(DataFolder), secrets, "restic"), []);
+        Assert.IsType<DashboardViewModel>(next.CurrentPage);
+        await next.ShutdownAsync();
     }
 
     private static async Task WaitUntilAsync(Func<bool> condition)

@@ -42,9 +42,21 @@ The backup is encrypted with a password that you choose. It is not sent to Image
 nobody else knows it. If you lose it, nobody can read the backup any more, Imagepixel
 included, and it cannot be reset. Write it down and keep it somewhere safe.
 
+## No warranty
+
+Imagepixel Backup is free, open-source software and comes without warranty. Imagepixel is
+liable for defects of the program and for lost data only in cases of intent and gross
+negligence. No storage is safe from every failure, the one of Imagepixel included: do not
+rely on a single backup for important data, and try from time to time whether files can
+be restored.
+
+The full notes on use and liability, in German, are in
+[NUTZUNGSHINWEISE.md](NUTZUNGSHINWEISE.md). The application shows a short form of them
+once, at its first start, and asks to confirm it. They come with every download.
+
 ## Status
 
-Early development, version 0.1.0. The
+Early development, version 0.1.1. The
 [pre-release](https://github.com/imagepixel/imagepixel-backup/releases) has downloads for
 Windows, macOS and Linux. None of them is signed yet.
 
@@ -141,7 +153,7 @@ tests/run-on-linux.sh
 
 # installs a package on a fresh system and checks that the application starts
 docker run --rm --cap-add IPC_LOCK -v "$PWD:/src" ubuntu:rolling \
-    bash /src/installer/linux/smoke-test.sh /src/artifacts/linux/imagepixel-backup_0.1.0_amd64.deb
+    bash /src/installer/linux/smoke-test.sh /src/artifacts/linux/imagepixel-backup_0.1.1_amd64.deb
 ```
 
 Both packages put the application with the .NET runtime and restic into
