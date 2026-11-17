@@ -1,8 +1,7 @@
 name: macOS
 
 # Builds and tests the application on a Mac of GitHub, and keeps the disk images
-# of the application as a download of the run. The version for macOS is a beta:
-# this workflow is the only place it has run so far.
+# of the application as a download of the run.
 
 on:
   push:
@@ -52,7 +51,7 @@ jobs:
       - name: Keep the disk images
         uses: actions/upload-artifact@v4
         with:
-          name: imagepixel-backup-mac-beta
+          name: imagepixel-backup-mac
           path: artifacts/macos/*.dmg
           if-no-files-found: error
 

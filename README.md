@@ -57,14 +57,16 @@ Linux. It is tested by the
 [workflow](.github/workflows/linux.yml) and in containers; nobody has worked with it on a
 desktop yet.
 
-The macOS version is a **beta**. Nobody has used it on a Mac so
-far: it is built and tested by the [workflow](.github/workflows/macos.yml) on a Mac of
-GitHub only. The application says so in the title of its window and on its info page, and
-its disk images carry `beta` in their names. It backs up and restores like the Windows
-version and keeps its secrets in the keychain. Two things are missing: it cannot open
-backups as a drive, and it does not free up files of a cloud service again that were
-downloaded for the backup. Without a certificate of an Apple developer account macOS asks
-for confirmation in the system settings before it opens the application for the first time.
+The macOS version runs on macOS 12 and later, on Macs with an Apple chip and with an Intel
+chip. The [workflow](.github/workflows/macos.yml) builds and tests it on a Mac of GitHub
+with a current macOS; by hand it has been worked with on one Intel Mac with macOS 12 so
+far. .NET and Avalonia, which the application is built on, are tested by their makers on
+newer versions of macOS only, so macOS 12 and 13 are covered by that one test. It backs up
+and restores like the Windows version and keeps its secrets in the keychain. Two things
+are missing: it cannot open backups as a drive, and it does not free up files of a cloud
+service again that were downloaded for the backup. Without a certificate of an Apple
+developer account macOS asks for confirmation in the system settings before it opens the
+application for the first time.
 
 ## Building
 
@@ -91,9 +93,10 @@ dotnet test
 The setup program brings everything a computer needs: the application with the .NET
 runtime, restic, and the installer of WinFsp, which it runs if WinFsp is missing.
 
-### macOS (beta)
+### macOS
 
-Requirements: macOS 14 or later, Git, Go and the .NET 10 SDK.
+Requirements for building: macOS 14 or later, Git, Go and the .NET 10 SDK. The application
+that comes out of it runs on macOS 12 and later.
 
 ```bash
 # builds restic for Macs with an Apple chip and with an Intel chip
@@ -105,7 +108,7 @@ dotnet run --project src/ImagepixelBackup.App
 # runs the tests
 dotnet test
 
-# builds artifacts/macos/ImagepixelBackup-<version>-beta-mac-arm64.dmg and -beta-mac-x64.dmg
+# builds artifacts/macos/ImagepixelBackup-<version>-mac-arm64.dmg and -mac-x64.dmg
 ./build-macos.sh
 
 # takes the application out of its disk image and checks that it starts

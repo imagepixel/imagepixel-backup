@@ -10,21 +10,6 @@ public static class Texts
 {
     public const string ProductName = "Imagepixel Backup";
 
-    /// <summary>
-    /// Whether this version is a beta. The one for macOS is: it is built and tested by
-    /// the workflow only and has not been used on a Mac by a person yet.
-    /// </summary>
-    public static bool IsBeta => OperatingSystem.IsMacOS();
-
-    /// <summary>The title of the window, which tells a beta apart.</summary>
-    public static string WindowTitle => IsBeta ? ProductName + " (Beta)" : ProductName;
-
-    /// <summary>What a beta means for the customer.</summary>
-    public const string BetaNote =
-        "Die Mac-Version ist eine Beta: Sie ist neu und noch nicht ausreichend auf Macs erprobt. "
-        + "Prüfe nach dem ersten Backup, ob sich deine Daten wiederherstellen lassen, "
-        + "und verlasse dich vorerst nicht allein auf dieses Backup.";
-
     /// <summary>What the guide explains. Linux has no cloud storage to back up.</summary>
     public static string GuideHint => CloudFolderDetector.IsSupported
         ? "Schritt für Schritt erklärt: Backup einrichten, Daten wiederherstellen, Cloud-Speicher sichern und was die Meldungen des Programms bedeuten."

@@ -498,10 +498,9 @@ public sealed class WalkthroughTests : IDisposable
         var about = Assert.IsType<AboutViewModel>(main.CurrentPage);
         Assert.StartsWith("Version 0.", about.Version);
 
-        // only the version for macOS calls itself a beta, in the title of the window too
-        Assert.Equal(OperatingSystem.IsMacOS(), about.IsBeta);
-        Assert.Equal(OperatingSystem.IsMacOS(), about.Version.EndsWith(" Beta"));
-        Assert.Equal(OperatingSystem.IsMacOS(), window.Title!.EndsWith("(Beta)"));
+        // no system gets a version that calls itself a beta
+        Assert.DoesNotContain("Beta", about.Version);
+        Assert.Equal("Imagepixel Backup", window.Title);
         Capture(window, "11-info");
         about.OpenLinkCommand.Execute(AboutViewModel.WinFspUrl);
         Assert.Equal(AboutViewModel.WinFspUrl, opened.Last());

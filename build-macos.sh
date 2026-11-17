@@ -2,10 +2,8 @@
 # Builds the application for macOS and packs it into disk images, one for Macs with
 # an Apple chip and one for Macs with an Intel chip:
 #
-#   artifacts/macos/ImagepixelBackup-<version>-beta-mac-arm64.dmg
-#   artifacts/macos/ImagepixelBackup-<version>-beta-mac-x64.dmg
-#
-# The version for macOS is a beta, which the names of the disk images say.
+#   artifacts/macos/ImagepixelBackup-<version>-mac-arm64.dmg
+#   artifacts/macos/ImagepixelBackup-<version>-mac-x64.dmg
 #
 # Must run on macOS. Requirements: Git, Go and the .NET 10 SDK.
 set -euo pipefail
@@ -65,8 +63,8 @@ for rid in osx-arm64 osx-x64; do
 
     # the disk image shows the application next to a shortcut to the Applications folder
     ln -s /Applications "$image/Applications"
-    dmg="$out/ImagepixelBackup-$version-beta-mac-$arch.dmg"
-    hdiutil create -quiet -volname "Imagepixel Backup Beta" -srcfolder "$image" -ov -format UDZO "$dmg"
+    dmg="$out/ImagepixelBackup-$version-mac-$arch.dmg"
+    hdiutil create -quiet -volname "Imagepixel Backup" -srcfolder "$image" -ov -format UDZO "$dmg"
     rm -rf "$image"
     echo "Done: $dmg"
 done

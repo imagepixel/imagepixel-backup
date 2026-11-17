@@ -23,11 +23,7 @@ public partial class AboutViewModel : ViewModelBase
     }
 
     public string Version { get; } =
-        "Version " + (typeof(AboutViewModel).Assembly.GetName().Version?.ToString(3) ?? "?")
-        + (Texts.IsBeta ? " Beta" : "");
-
-    /// <summary>Whether to say that this version is a beta and what that means.</summary>
-    public bool IsBeta => Texts.IsBeta;
+        "Version " + (typeof(AboutViewModel).Assembly.GetName().Version?.ToString(3) ?? "?");
 
     /// <summary>WinFsp is only part of the application where it shows the backup as a drive.</summary>
     public bool ShowWinFsp => OperatingSystem.IsWindows();
