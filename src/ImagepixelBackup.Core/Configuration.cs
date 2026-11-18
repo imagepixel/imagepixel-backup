@@ -42,6 +42,14 @@ public sealed class BackupFolder
     public FolderExclusions Exclusions { get; set; } = new();
 
     /// <summary>
+    /// The folder inside the storage that the backups of this folder go to, in the form
+    /// <see cref="StorageFolder.Normalize"/> gives it, empty for directly in the storage.
+    /// Null means the folder the storage was set up with (<see cref="StorageSettings.Folder"/>),
+    /// which is where every folder went before folders had a destination of their own.
+    /// </summary>
+    public string? Destination { get; set; }
+
+    /// <summary>
     /// Whether the user has said what to leave out, by taking over or turning down the
     /// suggestion before the first backup or by setting up exceptions themselves. Also
     /// set when the folder holds nothing worth suggesting.
@@ -62,11 +70,27 @@ public sealed class BackupFolder
     public long PausedBytesTotal { get; set; }
 
     /// <summary>
+    /// Forgets how the backups of the folder went, when they go to another destination
+    /// from now on: nothing has been saved there yet, so the folder is due at once.
+    /// What the user set up stays: schedule, exceptions, and a pause.
+    /// </summary>
+    public void ForgetRuns()
+    {
+        LastAttempt = null;
+        LastSuccess = null;
+        LastError = null;
+        LastWarnings = 0;
+        PausedBytesDone = 0;
+        PausedBytesTotal = 0;
+    }
+
+    /// <summary>
     /// The same folder for a backup at another place. What the user set up comes along:
     /// schedule, exceptions, and a pause. How the backups went does not, because nothing
-    /// has been saved at the new place yet, so the folder is due there at once. It is a
-    /// new object, so that a backup still running against the old place cannot write
-    /// its outcome into it.
+    /// has been saved at the new place yet, so the folder is due there at once. Nor does
+    /// its destination, a folder of the previous storage: it goes where the new storage
+    /// was set up to take backups. It is a new object, so that a backup still running
+    /// against the old place cannot write its outcome into it.
     /// </summary>
     public BackupFolder ForAnotherPlace() => new()
     {
@@ -79,12 +103,39 @@ public sealed class BackupFolder
     };
 }
 
+/// <summary>
+/// The backups of a folder at a destination it no longer goes to, which the user asked
+/// to have deleted once some days have passed. Until then they can still be restored.
+/// </summary>
+public sealed class PendingCleanup
+{
+    /// <summary>The destination the backups lie in, see <see cref="BackupFolder.Destination"/>.</summary>
+    public string Destination { get; set; } = "";
+
+    /// <summary>The folder whose backups are deleted there. Backups of other folders stay.</summary>
+    public string FolderPath { get; set; } = "";
+
+    public DateTimeOffset CreatedAt { get; set; }
+
+    /// <summary>From when on the backups are deleted, the next time the application runs.</summary>
+    public DateTimeOffset DueAt { get; set; }
+
+    /// <summary>Why the last attempt failed, or null.</summary>
+    public string? LastError { get; set; }
+
+    /// <summary>When to try again after a failed attempt.</summary>
+    public DateTimeOffset? RetryAt { get; set; }
+}
+
 /// <summary>The settings of the application. Secrets are not part of it.</summary>
 public sealed class AppConfig
 {
     public StorageSettings? Storage { get; set; }
 
     public List<BackupFolder> Folders { get; set; } = [];
+
+    /// <summary>Backups at destinations that are no longer used, waiting to be deleted.</summary>
+    public List<PendingCleanup> Cleanups { get; set; } = [];
 
     /// <summary>
     /// The version of the notes on use and liability the user confirmed, or null if

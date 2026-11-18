@@ -188,10 +188,9 @@ public sealed class StorageFolderTests : IDisposable
         secrets.Set(SecretNames.SecretAccessKey, "secret");
         Assert.Equal(["", "Büro", "Notebook"], await manager.FindBackupFoldersAsync());
 
-        // moving to another folder is for Imagepixel Storage only
+        // a folder on a disk is looked into on the disk; one that is not there holds nothing
         manager.Config.Storage = new StorageSettings { Kind = StorageKind.LocalFolder, LocalPath = Path.Combine(_root, "repo") };
         Assert.Empty(await manager.FindBackupFoldersAsync());
-        await Assert.ThrowsAsync<InvalidOperationException>(() => manager.ConnectToFolderAsync("Notebook", "password", createIfMissing: false));
     }
 
     [SkippableFact]
@@ -224,6 +223,10 @@ public sealed class StorageFolderTests : IDisposable
         Assert.Equal(RepositoryState.NotFound, await manager.ConnectAsync(second, "password", null, createIfMissing: false));
         Assert.Same(folder, Assert.Single(manager.Config.Folders));
 
+        // a destination of its own and a deletion that waits belong to the first place
+        await manager.ChangeDestinationAsync(folder, "Notebook", deleteOldAfterDays: 30);
+        Assert.Single(manager.Config.Cleanups);
+
         // at another place nothing has been saved yet: the folder is due at once, set up as before
         Assert.Equal(RepositoryState.Ready, await manager.ConnectAsync(second, "password", null, createIfMissing: true));
         var moved = Assert.Single(manager.Config.Folders);
@@ -236,6 +239,11 @@ public sealed class StorageFolderTests : IDisposable
         Assert.True(moved.ExclusionsDecided);
         Assert.True(BackupSchedule.IsDue(moved, DateTimeOffset.Now));
 
+        // at the new place the folder goes where that storage takes backups, and nothing
+        // there is deleted for the old one
+        Assert.Null(moved.Destination);
+        Assert.Empty(manager.Config.Cleanups);
+
         // and it is saved that way
         var saved = Assert.Single(new ConfigStore(Path.Combine(_root, "settings")).Load().Folders);
         Assert.Null(saved.LastSuccess);
@@ -246,14 +254,15 @@ public sealed class StorageFolderTests : IDisposable
     }
 
     /// <summary>
-    /// Folders against a real storage, with real names: an umlaut, a space, a folder
-    /// inside a folder. Runs only where a bucket for tests is named in the environment:
-    /// IPB_TEST_BUCKET, IPB_TEST_ACCESS_KEY_ID, IPB_TEST_SECRET_ACCESS_KEY and, unless it
-    /// is the usual one, IPB_TEST_REGION. It leaves two small backups in that bucket,
-    /// in the folders named here, and uses them again the next time.
+    /// Destinations in a real storage, with real names: an umlaut and a space. Runs only
+    /// where a bucket for tests is named in the environment: IPB_TEST_BUCKET,
+    /// IPB_TEST_ACCESS_KEY_ID, IPB_TEST_SECRET_ACCESS_KEY and, unless it is the usual one,
+    /// IPB_TEST_REGION. It keeps a small backup in the folder "Test Büro Notebook" of that
+    /// bucket and uses it again the next time; the destination it makes for itself it
+    /// removes again.
     /// </summary>
     [SkippableFact]
-    public async Task Folders_work_in_a_real_storage()
+    public async Task Destinations_work_in_a_real_storage()
     {
         var restic = ResticClient.FindRestic();
         Skip.If(restic is null, "restic has not been built");
@@ -267,7 +276,7 @@ public sealed class StorageFolderTests : IDisposable
 
         const string password = "nur-ein-test-passwort";
         const string notebook = "Test Büro Notebook";
-        const string second = "Test Büro/Zweiter PC";
+        var fresh = "Test Ziel " + Guid.NewGuid().ToString("N")[..8];
         var storage = new StorageSettings
         {
             Kind = StorageKind.ImagepixelStorage,
@@ -286,26 +295,42 @@ public sealed class StorageFolderTests : IDisposable
         Assert.Equal(RepositoryState.Ready, await manager.ConnectAsync(storage.WithFolder(notebook), password, secret, createIfMissing: true));
         var folder = manager.AddFolder(documents);
         var saved = (await manager.BackupAsync(folder)).SnapshotId;
-        Assert.Contains(await manager.GetSnapshotsAsync(), snapshot => snapshot.Id == saved);
 
         // it is found, by the name of its folder; a folder that only holds other folders is not one
         var found = await manager.FindBackupFoldersAsync();
         Assert.Contains(notebook, found);
         Assert.DoesNotContain("Test Büro", found);
 
-        // another folder is another backup: it does not hold what was just saved, and the folder is due there
-        Assert.Equal(RepositoryState.Ready, await manager.ConnectToFolderAsync(second, password, createIfMissing: true));
-        Assert.Equal(second, manager.Config.Storage!.Folder);
-        Assert.DoesNotContain(await manager.GetSnapshotsAsync(), snapshot => snapshot.Id == saved);
-        Assert.Null(Assert.Single(manager.Config.Folders).LastSuccess);
+        // another destination is another backup, created on the way
+        await manager.ChangeDestinationAsync(folder, fresh, deleteOldAfterDays: 0);
+        Assert.Null(folder.LastSuccess);
+        await manager.BackupAsync(folder);
+        var all = await manager.GetSnapshotsAsync();
+        Assert.Contains(all, snapshot => snapshot.Id == saved && snapshot.Destination == notebook);
+        Assert.Single(all, snapshot => snapshot.Destination == fresh);
+        var othersAtNotebook = all.Count(snapshot => snapshot.Destination == notebook && snapshot.Id != saved);
 
-        // a password that does not open a folder leaves the application where it is
-        Assert.Equal(RepositoryState.WrongPassword, await manager.ConnectToFolderAsync(notebook, "falsches-passwort", createIfMissing: false));
-        Assert.Equal(second, manager.Config.Storage.Folder);
+        // the old backup of the folder is deleted; what earlier runs left there stays
+        var result = Assert.Single(await manager.RunDueCleanupsAsync(DateTimeOffset.Now.AddMinutes(1)));
+        Assert.Null(result.Error);
+        Assert.Equal(1, result.SnapshotsDeleted);
+        Assert.False(result.DestinationRemoved);
+        all = await manager.GetSnapshotsAsync();
+        Assert.DoesNotContain(all, snapshot => snapshot.Id == saved);
+        Assert.Equal(othersAtNotebook, all.Count(snapshot => snapshot.Destination == notebook));
 
-        // and back: the first backup is as it was left
-        Assert.Equal(RepositoryState.Ready, await manager.ConnectToFolderAsync(notebook, password, createIfMissing: false));
-        Assert.Contains(await manager.GetSnapshotsAsync(), snapshot => snapshot.Id == saved);
+        // going back removes the destination of this run altogether, so that it leaves nothing behind
+        await manager.ChangeDestinationAsync(folder, notebook, deleteOldAfterDays: 0);
+        result = Assert.Single(await manager.RunDueCleanupsAsync(DateTimeOffset.Now.AddMinutes(1)));
+        Assert.Null(result.Error);
+        Assert.True(result.DestinationRemoved);
+        var left = new List<string>();
+        await foreach (var (key, _) in S3Client.For(new HttpClient(), storage, secret!).ListObjectsAsync(fresh + "/"))
+        {
+            left.Add(key);
+        }
+
+        Assert.Empty(left);
     }
 
     public void Dispose()

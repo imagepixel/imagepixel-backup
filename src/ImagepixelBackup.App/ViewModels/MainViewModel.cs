@@ -196,6 +196,8 @@ public partial class MainViewModel : ViewModelBase
 
     public void ShowExclusions(FolderItemViewModel folder) => CurrentPage = new ExclusionsViewModel(this, _manager, folder);
 
+    public void ShowDestination(FolderItemViewModel folder) => CurrentPage = new DestinationViewModel(this, _manager, folder);
+
     /// <summary>Shows what the look through a folder suggests leaving out, for the customer to answer.</summary>
     public void ShowSuggestion(FolderItemViewModel folder)
     {
@@ -220,9 +222,8 @@ public partial class MainViewModel : ViewModelBase
     public void ShowAbout() => CurrentPage = new AboutViewModel(this, CurrentPage);
 
     /// <summary>
-    /// Shows the setup for moving to another storage, or to another folder of the one
-    /// in use. Nothing is forgotten or stopped by this: the overview keeps running
-    /// behind it, and the customer can go back.
+    /// Shows the setup for moving to another storage. Nothing is forgotten or stopped
+    /// by this: the overview keeps running behind it, and the customer can go back.
     /// </summary>
     public void ShowStorageChange() => CurrentPage = new SetupViewModel(_manager, this, switching: true);
 

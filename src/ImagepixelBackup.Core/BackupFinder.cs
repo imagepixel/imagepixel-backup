@@ -24,7 +24,12 @@ public sealed class BackupFinder(HttpClient http)
         string? secretAccessKey,
         CancellationToken cancellationToken = default)
     {
-        if (!storage.IsS3 || string.IsNullOrEmpty(secretAccessKey))
+        if (!storage.IsS3)
+        {
+            return FindInFolder(storage.LocalPath);
+        }
+
+        if (string.IsNullOrEmpty(secretAccessKey))
         {
             return [];
         }
@@ -63,6 +68,39 @@ public sealed class BackupFinder(HttpClient http)
         catch (Exception e) when (e is HttpRequestException or S3Exception or TaskCanceledException or System.Xml.XmlException)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            return [];
+        }
+    }
+
+    // The same for the folder of a backup on a disk: its subfolders that hold a backup.
+    private static IReadOnlyList<string> FindInFolder(string root)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
+            {
+                return [];
+            }
+
+            var found = new List<string>();
+            if (File.Exists(Path.Combine(root, Marker)))
+            {
+                found.Add("");
+            }
+
+            foreach (var directory in Directory.EnumerateDirectories(root).Order(StringComparer.CurrentCultureIgnoreCase).Take(MaxFolders))
+            {
+                var name = Path.GetFileName(directory);
+                if (StorageFolder.Check(name) == StorageFolderProblem.None && File.Exists(Path.Combine(directory, Marker)))
+                {
+                    found.Add(name);
+                }
+            }
+
+            return found;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
             return [];
         }
     }

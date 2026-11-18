@@ -92,6 +92,24 @@ public static class Texts
 
     public static string ShowDrive => $"Im {FileManager} anzeigen";
 
+    /// <summary>The name the drive with the encrypted files shows.</summary>
+    public const string EncryptedVolumeName = "Imagepixel Backup (verschlüsselt)";
+
+    /// <summary>What opening the backup encrypted does.</summary>
+    public const string EncryptedHint =
+        "„Verschlüsselt öffnen“ zeigt dieselben Sicherungen so, wie sie im Speicher liegen: als verschlüsselte Dateien mit Prüfsummen als Namen. "
+        + "Ohne dein Passwort kann niemand sie lesen.";
+
+    public static string EncryptedDriveOpen(string mountpoint) =>
+        OperatingSystem.IsWindows() ? $"Laufwerk {mountpoint} zeigt die verschlüsselten Dateien" : "Das Laufwerk zeigt die verschlüsselten Dateien";
+
+    public static string EncryptedDriveReady(string mountpoint, string folder) =>
+        (OperatingSystem.IsWindows() ? $"Laufwerk {mountpoint} zeigt deine Sicherungen so, wie sie im Speicher liegen" : $"Unter {folder} siehst du deine Sicherungen so, wie sie im Speicher liegen")
+        + ": verschlüsselt und nur zum Lesen. Öffnest du eine Datei mit einem Editor, ist ihr Inhalt unlesbar.";
+
+    public static string EncryptedFolderOpened(string folder) =>
+        $"Der {FileManager} zeigt den Ordner {folder}, so wie die Dateien dort liegen: verschlüsselt, mit Prüfsummen als Namen.";
+
     /// <summary>What stands in front of the drive letter the backup will be opened under.</summary>
     public const string DriveLetterLabel = "Verbinden als Laufwerk";
 
@@ -165,14 +183,8 @@ public static class Texts
 
     /// <summary>What the setup says when the customer came to move to another storage.</summary>
     public static string SwitchNote(string storage) =>
-        $"Du bist mit „{storage}“ verbunden. Daran ändert sich nichts, solange du hier kein anderes Ziel einrichtest: "
-        + "Deine Sicherungen laufen weiter. Das Backup am bisherigen Ort bleibt in jedem Fall erhalten.";
-
-    /// <summary>What the setup says when the application holds the access data of the storage already.</summary>
-    public const string StoredAccessNote =
-        "Deine Zugangsdaten sind hinterlegt. Für einen anderen Ordner im selben Speicher brauchst du den Einrichtungscode nicht noch einmal: "
-        + "Lass das Feld leer und trage unten den Ordner ein. Ein neuer Ordner beginnt als leeres Backup. "
-        + "Das bisherige wird nicht verschoben; es bleibt, wo es ist, und belegt weiter Speicher.";
+        $"Du bist mit „{storage}“ verbunden. Daran ändert sich nichts, solange du hier keinen anderen Speicher einrichtest: "
+        + "Deine Sicherungen laufen weiter. Das Backup im bisherigen Speicher bleibt in jedem Fall erhalten.";
 
     public const string FolderLabel = "Ordner im Speicher (optional)";
 
@@ -180,7 +192,7 @@ public static class Texts
 
     public const string FolderHintBackup =
         "Unter diesem Ordner legt das Programm deine Sicherungen im Speicher ab. So bleiben mehrere Rechner in einem Speicher getrennt. "
-        + "Ohne Angabe liegen sie direkt im Speicher.";
+        + "Ohne Angabe liegen sie direkt im Speicher. Später kannst du das Ziel für jeden Ordner einzeln ändern.";
 
     public const string FolderHintRestore =
         "Trage den Ordner ein, wenn du beim Einrichten des Backups einen angegeben hast. Sonst lass das Feld leer.";
@@ -285,10 +297,84 @@ public static class Texts
         };
     }
 
+    /// <summary>
+    /// Where in the storage a destination is, to stand in a sentence: "im Ordner „Notebook“"
+    /// or "direkt im Speicher".
+    /// </summary>
+    public static string DestinationPhrase(StorageSettings? storage, string destination) =>
+        destination.Length > 0 ? $"im Ordner „{destination}“"
+        : storage is { IsS3: false } ? "direkt im Backup-Ordner"
+        : "direkt im Speicher";
+
+    /// <summary>The same as a label, for a button or a list: "Notebook" or "Ohne Ordner (direkt im Speicher)".</summary>
+    public static string DestinationLabel(StorageSettings? storage, string destination) =>
+        destination.Length > 0 ? destination : $"Ohne Ordner ({DestinationPhrase(storage, destination)})";
+
+    /// <summary>What a folder in the overview says about where its backups go.</summary>
+    public static string DestinationLine(StorageSettings? storage, string destination) =>
+        destination.Length > 0 ? $"Ziel: Ordner „{destination}“" : $"Ziel: {DestinationPhrase(storage, destination)}";
+
+    public const string DestinationNote =
+        "Hier legst du fest, in welchem Ordner deines Speichers die Sicherungen dieses Ordners liegen. "
+        + "Ein Ordner, in dem noch nichts liegt, beginnt als neues Backup mit deinem Verschlüsselungs-Passwort.";
+
+    public const string DestinationsFound = "In deinem Speicher gibt es diese Ziele:";
+
+    /// <summary>The question about what becomes of the backups at the destination a folder leaves.</summary>
+    public static string OldBackupsQuestion(string folder, string oldPlace) =>
+        $"Was soll mit den bisherigen Sicherungen von „{folder}“ {oldPlace} passieren?";
+
+    public const string OldBackupsHint =
+        "Gelöscht werden nur die Sicherungen dieses Ordners. Bis dahin kannst du sie weiter wiederherstellen, und sie belegen weiter Speicher. "
+        + "Gelöscht wird, wenn das Programm nach Ablauf der Frist läuft.";
+
+    public const string OldBackupsUnanswered = "Bitte wähle aus, was mit den bisherigen Sicherungen passieren soll.";
+
+    public const string DestinationWhileRunning = "Während dieser Ordner gesichert wird, lässt sich sein Ziel nicht ändern. Bitte warte, bis die Sicherung fertig ist.";
+
+    public static string DestinationOtherPassword(string place) =>
+        $"{Capitalize(place)} liegt schon ein Backup mit einem anderen Verschlüsselungs-Passwort. Bitte wähle ein anderes Ziel.";
+
+    /// <summary>What the overview says once the destination of a folder has changed.</summary>
+    public static string DestinationChanged(string folder, string place, int? deleteOldAfterDays) =>
+        $"„{folder}“ wird ab jetzt {place} gesichert."
+        + (deleteOldAfterDays is { } days ? $" Die bisherigen Sicherungen werden in {days} Tagen gelöscht." : " Die bisherigen Sicherungen bleiben erhalten.");
+
+    /// <summary>What a folder says about its old backups that wait to be deleted.</summary>
+    public static string CleanupPending(StorageSettings? storage, PendingCleanup cleanup, DateTimeOffset now)
+    {
+        var place = DestinationPhrase(storage, cleanup.Destination);
+        if (cleanup.LastError is { } error)
+        {
+            return $"Die bisherigen Sicherungen {place} ließen sich noch nicht löschen; das Programm versucht es später noch einmal. ({error})";
+        }
+
+        return cleanup.DueAt <= now
+            ? $"Die bisherigen Sicherungen {place} werden jetzt gelöscht."
+            : $"Die bisherigen Sicherungen {place} werden ab dem {cleanup.DueAt.ToLocalTime().ToString("dd.MM.yyyy", German)} gelöscht.";
+    }
+
+    public static string OldBackupsKept(string folder) => $"Die bisherigen Sicherungen von „{folder}“ bleiben erhalten.";
+
+    /// <summary>What the overview says after old backups were deleted, or why that failed.</summary>
+    public static string CleanupDone(StorageSettings? storage, CleanupResult result, string folder)
+    {
+        var place = DestinationPhrase(storage, result.Destination);
+        if (result.Error is not null)
+        {
+            return $"Die bisherigen Sicherungen von „{folder}“ {place} ließen sich nicht löschen. Das Programm versucht es später noch einmal.";
+        }
+
+        var done = result.SnapshotsDeleted == 1
+            ? $"Die bisherige Sicherung von „{folder}“ {place} wurde gelöscht."
+            : $"Die {result.SnapshotsDeleted} bisherigen Sicherungen von „{folder}“ {place} wurden gelöscht.";
+        return result.DestinationRemoved ? done + " Dort liegt jetzt nichts mehr." : done;
+    }
+
+    private static string Capitalize(string text) => text.Length > 0 ? char.ToUpper(text[0], German) + text[1..] : text;
+
     public static string StorageName(StorageSettings storage) => storage.Kind switch
     {
-        StorageKind.ImagepixelStorage when storage.Folder.Length > 0 =>
-            $"Imagepixel Storage · {storage.Bucket} · Ordner {storage.Folder}",
         StorageKind.ImagepixelStorage => $"Imagepixel Storage · {storage.Bucket}",
         _ => $"Ordner · {storage.LocalPath}",
     };
@@ -312,6 +398,11 @@ public static class Texts
         if (error is FolderOverlapException overlap)
         {
             return Overlap(overlap.Folder, overlap.Storage);
+        }
+
+        if (error is DestinationPasswordException destination)
+        {
+            return DestinationOtherPassword($"im Ordner „{destination.Destination}“");
         }
 
         if (error is DriveLetterInUseException drive)

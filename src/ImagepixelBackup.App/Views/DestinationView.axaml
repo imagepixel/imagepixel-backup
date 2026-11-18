@@ -1,0 +1,83 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ImagepixelBackup.App.ViewModels"
+             xmlns:local="using:ImagepixelBackup.App"
+             x:Class="ImagepixelBackup.App.Views.DestinationView"
+             x:DataType="vm:DestinationViewModel"
+             x:Name="Root">
+
+    <ScrollViewer>
+        <StackPanel MaxWidth="680" Margin="32,28" Spacing="16">
+
+            <StackPanel>
+                <TextBlock Classes="title" Text="{Binding Title}" TextWrapping="Wrap" />
+                <TextBlock Classes="subtle" Text="{Binding Path}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+
+            <Border Classes="note">
+                <TextBlock TextWrapping="Wrap" Text="{x:Static local:Texts.DestinationNote}" />
+            </Border>
+
+            <!-- where the backups of the folder go -->
+            <Border Classes="card">
+                <StackPanel Spacing="10" IsEnabled="{Binding CanEdit}">
+                    <TextBlock Classes="heading" Text="Ordner im Speicher" />
+                    <TextBlock Classes="subtle" Text="{Binding CurrentText}" />
+                    <TextBox Text="{Binding Destination}" PlaceholderText="{x:Static local:Texts.FolderExample}" />
+                    <TextBlock Text="{Binding Problem}" TextWrapping="Wrap"
+                               Foreground="{DynamicResource ProblemTextBrush}" IsVisible="{Binding HasProblem}" />
+
+                    <!-- what the storage holds already, one click instead of typing -->
+                    <StackPanel IsVisible="{Binding HasFoundBackups}" Spacing="6">
+                        <TextBlock Classes="subtle" Text="{x:Static local:Texts.DestinationsFound}" />
+                        <ItemsControl ItemsSource="{Binding FoundBackups}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:FoundBackup">
+                                    <Button Content="{Binding Label}" Margin="0,0,8,6"
+                                            Command="{Binding #Root.((vm:DestinationViewModel)DataContext).ChooseFoundBackupCommand}"
+                                            CommandParameter="{Binding}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- asked only when the destination changes; nothing is chosen for the customer -->
+            <Border Classes="card" IsVisible="{Binding IsChange}">
+                <StackPanel Spacing="10" IsEnabled="{Binding CanEdit}">
+                    <TextBlock Classes="heading" Text="{Binding OldBackupsQuestion}" TextWrapping="Wrap" />
+                    <RadioButton GroupName="old" Content="Behalten" IsChecked="{Binding KeepOld}" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <RadioButton GroupName="old" Content="Löschen nach" IsChecked="{Binding DeleteOld}"
+                                     VerticalAlignment="Center" />
+                        <ComboBox ItemsSource="{Binding DayOptions}" SelectedIndex="{Binding DayIndex}" MinWidth="120"
+                                  VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock Classes="subtle" Text="{x:Static local:Texts.OldBackupsHint}" />
+                </StackPanel>
+            </Border>
+
+            <Border IsVisible="{Binding HasError}" Background="{DynamicResource ProblemBackgroundBrush}"
+                    CornerRadius="6" Padding="14,10">
+                <TextBlock Text="{Binding ErrorMessage}" Foreground="{DynamicResource ProblemTextBrush}"
+                           TextWrapping="Wrap" />
+            </Border>
+
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Classes="accent" Content="Speichern" Padding="28,9" Command="{Binding SaveCommand}"
+                        IsEnabled="{Binding CanEdit}" />
+                <Button Content="Abbrechen" Padding="20,9" Command="{Binding CancelCommand}" IsEnabled="{Binding CanEdit}" />
+                <ProgressBar IsIndeterminate="True" Width="120" VerticalAlignment="Center" IsVisible="{Binding IsBusy}" />
+                <TextBlock Classes="subtle" VerticalAlignment="Center" Text="Ziel wird vorbereitet …"
+                           IsVisible="{Binding IsBusy}" />
+            </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

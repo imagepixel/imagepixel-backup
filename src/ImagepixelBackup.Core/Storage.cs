@@ -49,10 +49,11 @@ public sealed class StorageSettings
     public string ApiUrl { get; set; } = "";
 
     /// <summary>
-    /// The folder inside the bucket that holds the backup, for
-    /// <see cref="StorageKind.ImagepixelStorage"/>, in the form
-    /// <see cref="StorageFolder.Normalize"/> gives it. Empty if the backup lies directly
-    /// in the bucket, which is where every backup made before folders existed is.
+    /// The folder inside the storage that backups go to unless a folder that is backed up
+    /// has a destination of its own (<see cref="BackupFolder.Destination"/>), in the form
+    /// <see cref="StorageFolder.Normalize"/> gives it. Empty for directly in the bucket or
+    /// in the folder of the backup, which is where every backup made before folders
+    /// existed is.
     /// </summary>
     public string Folder { get; set; } = "";
 
@@ -61,7 +62,7 @@ public sealed class StorageSettings
     /// <summary>The repository location in the syntax restic expects.</summary>
     public string RepositoryUrl => IsS3
         ? $"s3:https://{ImagepixelStorage.Endpoint(Region)}/{Bucket}" + (Folder.Length > 0 ? "/" + Folder : "")
-        : LocalPath;
+        : Folder.Length > 0 ? Path.Combine(LocalPath, Folder.Replace('/', Path.DirectorySeparatorChar)) : LocalPath;
 
     /// <summary>The same storage with the same access, but another folder inside it.</summary>
     public StorageSettings WithFolder(string folder) => new()
@@ -215,6 +216,23 @@ public static class FolderRules
     public static StringComparer PathComparer =>
         OperatingSystem.IsLinux() ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase;
 
+    /// <summary>
+    /// Whether a path restic recorded for a snapshot is the folder. restic writes the
+    /// path as it got it, on Windows sometimes in the form "/C/Users/...".
+    /// </summary>
+    public static bool IsSameFolder(string recorded, string folder)
+    {
+        static string Key(string path)
+        {
+            var key = path.Replace('\\', '/').TrimEnd('/');
+            return key.Length >= 3 && key[0] == '/' && char.IsAsciiLetter(key[1]) && key[2] == '/'
+                ? key[1] + ":" + key[2..]
+                : key;
+        }
+
+        return string.Equals(Key(recorded), Key(folder), PathComparison);
+    }
+
     // "C:\Daten" must not match "C:\Daten alt", so both paths end with a separator
     private static string WithSeparator(string path) =>
         Path.TrimEndingDirectorySeparator(Path.GetFullPath(path)) + Path.DirectorySeparatorChar;
@@ -225,6 +243,13 @@ public sealed class DriveLetterInUseException(string letter)
     : InvalidOperationException($"The drive letter {letter} is in use.")
 {
     public string Letter { get; } = letter;
+}
+
+/// <summary>A destination holds a backup that the password of the application does not open.</summary>
+public sealed class DestinationPasswordException(string destination)
+    : InvalidOperationException($"The backup at the destination \"{destination}\" has another password.")
+{
+    public string Destination { get; } = destination;
 }
 
 /// <summary>A folder cannot be backed up because the backup is stored inside or around it.</summary>

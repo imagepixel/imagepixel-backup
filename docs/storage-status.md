@@ -61,9 +61,9 @@ measurement with the time it was made; otherwise the figure of the file stays, b
 it may count storage this computer cannot see. The booked size always comes from the
 file. The figures of the service are taken as they are.
 
-A storage can hold several backups, each in a [folder of its own](storage-folders.md).
+A storage can hold several backups, each in a [destination of its own](storage-folders.md).
 The booked size is that of the whole bucket, so everything in it is counted, whichever
-folder this computer backs up to.
+destinations the folders of this computer go to.
 
 The access key of a customer should be allowed to read the file but not to change it.
 A statement like this in the policy of the customer does that:

@@ -10,9 +10,14 @@ using ImagepixelBackup.Core.Restic;
 namespace ImagepixelBackup.App.ViewModels;
 
 /// <summary>One saved state of a folder, as shown in the restore list.</summary>
-public sealed class SnapshotItemViewModel(Snapshot snapshot)
+public sealed class SnapshotItemViewModel(Snapshot snapshot, string destination = "")
 {
     public Snapshot Snapshot { get; } = snapshot;
+
+    /// <summary>Where in the storage the state lies, when the backups are spread over more than one place.</summary>
+    public string Destination { get; } = destination;
+
+    public bool HasDestination => Destination.Length > 0;
 
     public string FolderName { get; } =
         snapshot.Paths.Count > 0 && System.IO.Path.GetFileName(snapshot.Paths[0].TrimEnd('\\', '/')) is { Length: > 0 } name
@@ -82,9 +87,13 @@ public partial class RestoreViewModel : ViewModelBase
         try
         {
             var snapshots = await Task.Run(() => _manager.GetSnapshotsAsync());
+
+            // with backups in more than one place, each line says where it lies
+            var spread = snapshots.Select(snapshot => snapshot.Destination).Distinct().Count() > 1;
             foreach (var snapshot in snapshots.Reverse())
             {
-                Snapshots.Add(new SnapshotItemViewModel(snapshot));
+                var place = spread ? Texts.DestinationLabel(_manager.Config.Storage, snapshot.Destination) : "";
+                Snapshots.Add(new SnapshotItemViewModel(snapshot, place));
             }
 
             Message = Snapshots.Count == 0 ? "Es gibt noch keine Sicherungen." : "";
@@ -135,7 +144,7 @@ public partial class RestoreViewModel : ViewModelBase
         var target = TargetFolder.Trim();
         try
         {
-            await Task.Run(() => _manager.RestoreAsync(item.Snapshot.Id, target, progress));
+            await Task.Run(() => _manager.RestoreAsync(item.Snapshot.Id, target, progress, destination: item.Snapshot.Destination));
             ProgressPercent = 100;
             IsDone = true;
             Message = $"Fertig. „{item.FolderName}“ vom {item.Time} liegt jetzt in {target}.";
@@ -165,7 +174,8 @@ public partial class RestoreViewModel : ViewModelBase
         Message = "Laufwerk wird geöffnet …";
         HasProblem = false;
 
-        await dashboard.MountCommand.ExecuteAsync(null);
+        // the drive shows the place of the state that is selected
+        await dashboard.OpenDriveAsync(SelectedSnapshot?.Snapshot.Destination ?? dashboard.SelectedMountDestination?.Folder);
 
         HasProblem = !dashboard.IsMounted;
         Message = dashboard.StatusLine;

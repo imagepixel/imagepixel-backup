@@ -27,6 +27,10 @@ if [ ! -f "$root/bin/restic-linux-amd64" ]; then
     bash "$root/build-restic.sh"
 fi
 
+if [ ! -f "$root/bin/rclone-linux-amd64" ]; then
+    bash "$root/get-rclone.sh"
+fi
+
 out="$root/artifacts/linux"
 rm -rf "$out"
 mkdir -p "$out"
@@ -52,7 +56,7 @@ stage() {
     # the same rights wherever the files were built
     find "$tree" -type d -exec chmod 755 {} +
     find "$tree" -type f -exec chmod 644 {} +
-    chmod 755 "$tree/opt/$name/ImagepixelBackup" "$tree/opt/$name/restic"
+    chmod 755 "$tree/opt/$name/ImagepixelBackup" "$tree/opt/$name/restic" "$tree/opt/$name/rclone"
 }
 
 # --- Ubuntu ---------------------------------------------------------------------------

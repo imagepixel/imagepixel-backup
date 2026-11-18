@@ -49,6 +49,11 @@ if (-not (Test-Path (Join-Path $root 'bin\restic.exe'))) {
     & (Join-Path $root 'build-restic.ps1')
 }
 
+# rclone as released by the rclone project, for the encrypted view of the storage
+if (-not (Test-Path (Join-Path $root 'bin\rclone.exe'))) {
+    & (Join-Path $root 'get-rclone.ps1')
+}
+
 # the unmodified installer of the WinFsp project, checked against its known hash
 $winFspDir = Join-Path $root '.build\winfsp'
 $winFspPath = Join-Path $winFspDir $WinFspMsi

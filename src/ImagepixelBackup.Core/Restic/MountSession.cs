@@ -5,7 +5,9 @@ namespace ImagepixelBackup.Core.Restic;
 /// <summary>
 /// A repository mounted as a read-only volume. The volume exists as long as the
 /// session is running. If this process ends for any reason, the standard input of the
-/// mount is closed, which unmounts the volume and releases the lock of restic.
+/// mount is closed, which unmounts the volume and releases the lock of restic. The same
+/// session also runs the encrypted view of the storage, which rclone provides (see
+/// <see cref="EncryptedView"/>).
 /// </summary>
 public sealed class MountSession : IAsyncDisposable
 {
@@ -21,7 +23,7 @@ public sealed class MountSession : IAsyncDisposable
     // volume. The exit code of restic becomes the one of the shell. The input is kept
     // as number 3 first, because a shell gives what it runs in the background an
     // empty input of its own.
-    private static readonly string StopOnInputClose = """
+    internal static readonly string StopOnInputClose = """
         exec 3<&0
         "$@" 3<&- &
         mount=$!
@@ -35,11 +37,13 @@ public sealed class MountSession : IAsyncDisposable
 
     private readonly Process _process;
     private readonly List<string> _errors = [];
+    private readonly bool _isRestic;
 
-    private MountSession(Process process, string mountpoint)
+    private MountSession(Process process, string mountpoint, bool isRestic)
     {
         _process = process;
         Mountpoint = mountpoint;
+        _isRestic = isRestic;
     }
 
     /// <summary>The drive letter or folder the repository is mounted at.</summary>
@@ -51,7 +55,7 @@ public sealed class MountSession : IAsyncDisposable
     /// </summary>
     public string RootPath => IsDriveLetter(Mountpoint)
         ? Mountpoint + Path.DirectorySeparatorChar
-        : Path.Combine(Mountpoint, SnapshotsFolder);
+        : _isRestic ? Path.Combine(Mountpoint, SnapshotsFolder) : Mountpoint;
 
     public bool IsRunning => !_process.HasExited;
 
@@ -80,7 +84,7 @@ public sealed class MountSession : IAsyncDisposable
     /// </summary>
     public static string LinuxMountpoint() => RuntimeFolder("imagepixel-backup");
 
-    private static string RuntimeFolder(string name)
+    internal static string RuntimeFolder(string name)
     {
         var runtime = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR");
         return runtime is { Length: > 0 } && Directory.Exists(runtime)
@@ -206,8 +210,26 @@ public sealed class MountSession : IAsyncDisposable
             isReady = () => IsMounted(mountpoint);
         }
 
+        return await StartProcessAsync(startInfo, mountpoint, isReady, isRestic: true, cancellationToken);
+    }
+
+    /// <summary>Starts the encrypted view of the storage that <see cref="EncryptedView"/> describes.</summary>
+    internal static Task<MountSession> StartViewAsync(ProcessStartInfo startInfo, string mountpoint, CancellationToken cancellationToken)
+    {
+        var root = mountpoint + Path.DirectorySeparatorChar;
+        Func<bool> isReady = OperatingSystem.IsWindows() ? () => Directory.Exists(root) : () => IsMounted(mountpoint);
+        return StartProcessAsync(startInfo, mountpoint, isReady, isRestic: false, cancellationToken);
+    }
+
+    private static async Task<MountSession> StartProcessAsync(
+        ProcessStartInfo startInfo,
+        string mountpoint,
+        Func<bool> isReady,
+        bool isRestic,
+        CancellationToken cancellationToken)
+    {
         var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
-        var session = new MountSession(process, mountpoint);
+        var session = new MountSession(process, mountpoint, isRestic);
         process.Exited += (_, _) => session.Exited?.Invoke(session, EventArgs.Empty);
         process.ErrorDataReceived += (_, e) =>
         {
@@ -232,7 +254,9 @@ public sealed class MountSession : IAsyncDisposable
                 if (process.HasExited)
                 {
                     process.WaitForExit();
-                    throw new ResticException(session.ErrorText(), process.ExitCode);
+                    throw isRestic
+                        ? new ResticException(session.ErrorText(), process.ExitCode)
+                        : new InvalidOperationException(session.ErrorText());
                 }
 
                 if (deadline.Elapsed > StartTimeout)
@@ -257,10 +281,17 @@ public sealed class MountSession : IAsyncDisposable
     {
         try
         {
-            // closing standard input asks for the volume to be unmounted
+            // Closing standard input asks for the volume to be unmounted. rclone does not
+            // watch it on Windows; it is ended, and WinFsp removes its drive with it.
+            if (!_isRestic && OperatingSystem.IsWindows() && !_process.HasExited)
+            {
+                _process.Kill(entireProcessTree: true);
+            }
+
             _process.StandardInput.Close();
         }
-        catch (Exception e) when (e is IOException or InvalidOperationException or ObjectDisposedException)
+        catch (Exception e) when (e is IOException or InvalidOperationException or ObjectDisposedException
+                                      or System.ComponentModel.Win32Exception)
         {
             // closed before, or the process is gone
         }
@@ -306,7 +337,9 @@ public sealed class MountSession : IAsyncDisposable
     {
         lock (_errors)
         {
-            return ResticClient.ErrorMessage(_errors, _process.ExitCode);
+            return _isRestic
+                ? ResticClient.ErrorMessage(_errors, _process.ExitCode)
+                : string.Join(" ", _errors.TakeLast(3)) is { Length: > 0 } text ? text : $"rclone ended with code {_process.ExitCode}.";
         }
     }
 

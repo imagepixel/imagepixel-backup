@@ -13,8 +13,10 @@ then on. Your data is encrypted on your computer before it leaves it.
   click
 - Back up every hour, every day at a set time, or only on demand
 - Store the backup in Imagepixel Storage, or in a folder such as a USB drive
-- In Imagepixel Storage a backup can have a [folder of its own](docs/storage-folders.md),
-  so that several computers share one storage without their backups getting mixed up
+- Give each folder its own [destination](docs/storage-folders.md) inside the storage, so
+  that several computers share one storage without their backups getting mixed up, and
+  change it later. The backups at the previous destination are kept, or deleted after 7,
+  30 or 90 days if you say so.
 - On Windows, files of a cloud service that are only stored online are downloaded for the
   backup and freed up again once they are saved, so the disk does not fill up. Files set to
   always stay on the computer are left alone.
@@ -27,6 +29,9 @@ then on. Your data is encrypted on your computer before it leaves it.
 - Restore a folder from any earlier state
 - On Windows and Linux, open all backups as a read-only drive and copy single files out of
   it. Nothing can be changed through the drive, so a backup cannot be damaged by browsing it.
+- Open the storage the way it lies there, read-only: the encrypted files of the backup,
+  to see for yourself that nothing in it can be read without your password (Windows and
+  Linux, through [rclone](https://rclone.org))
 
 **Keeping an eye on it**
 
@@ -60,7 +65,7 @@ once, at its first start, and asks to confirm it. They come with every download.
 
 ## Status
 
-Early development, version 0.1.6. The
+Early development, version 0.1.7. The
 [pre-release](https://github.com/imagepixel/imagepixel-backup/releases) has downloads for
 Windows, macOS and Linux. None of them is signed yet.
 
@@ -96,6 +101,9 @@ build the setup program.
 # builds bin\restic.exe: restic with the mount command for Windows
 .\build-restic.ps1
 
+# fetches bin\rclone.exe, for the encrypted view of the storage
+.\get-rclone.ps1
+
 # runs the application
 dotnet run --project src/ImagepixelBackup.App
 
@@ -107,7 +115,7 @@ dotnet test
 ```
 
 The setup program brings everything a computer needs: the application with the .NET
-runtime, restic, and the installer of WinFsp, which it runs if WinFsp is missing.
+runtime, restic, rclone, and the installer of WinFsp, which it runs if WinFsp is missing.
 
 ### macOS
 
@@ -145,6 +153,9 @@ packages are built with `dpkg-deb`, `bsdtar` and `zstd`.
 # builds restic
 ./build-restic.sh
 
+# fetches rclone, for the encrypted view of the storage
+./get-rclone.sh
+
 # runs the application
 dotnet run --project src/ImagepixelBackup.App
 
@@ -157,7 +168,7 @@ tests/run-on-linux.sh
 
 # installs a package on a fresh system and checks that the application starts
 docker run --rm --cap-add IPC_LOCK -v "$PWD:/src" ubuntu:rolling \
-    bash /src/installer/linux/smoke-test.sh /src/artifacts/linux/imagepixel-backup_0.1.6_amd64.deb
+    bash /src/installer/linux/smoke-test.sh /src/artifacts/linux/imagepixel-backup_0.1.7_amd64.deb
 ```
 
 Both packages put the application with the .NET runtime and restic into

@@ -39,6 +39,9 @@ jobs:
       - name: Build restic
         run: ./build-restic.sh
 
+      - name: Fetch rclone
+        run: bash ./get-rclone.sh
+
       - name: Run the tests
         run: tests/run-on-linux.sh
 

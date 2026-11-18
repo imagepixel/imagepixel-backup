@@ -7,7 +7,7 @@
     <RootNamespace>ImagepixelBackup.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
-    <Version>0.1.6</Version>
+    <Version>0.1.7</Version>
     <Product>Imagepixel Backup</Product>
     <Company>Imagepixel</Company>
     <Copyright>Copyright (c) 2026, Imagepixel</Copyright>
@@ -29,6 +29,15 @@
   </ItemGroup>
   <ItemGroup Condition="'$(ResticForUnix)' != '' And Exists('$(ResticForUnix)')">
     <None Include="$(ResticForUnix)" Link="restic" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- rclone shows the storage as it is, encrypted: fetched by get-rclone.ps1 for Windows
+       and by get-rclone.sh for Linux. macOS has no drive and needs none. -->
+  <ItemGroup Condition="!$(RuntimeIdentifier.StartsWith('osx')) And !$(RuntimeIdentifier.StartsWith('linux')) And Exists('..\..\bin\rclone.exe')">
+    <None Include="..\..\bin\rclone.exe" Link="rclone.exe" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'linux-x64' And Exists('..\..\bin\rclone-linux-amd64')">
+    <None Include="..\..\bin\rclone-linux-amd64" Link="rclone" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

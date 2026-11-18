@@ -47,7 +47,6 @@ public partial class SetupViewModel : ViewModelBase
         _manager = manager;
         _main = main;
         IsSwitching = switching && manager.IsConnected;
-        HasStoredAccess = IsSwitching && manager.Config.Storage is { IsS3: true };
         FoundBackups.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasFoundBackups));
         Sources.CollectionChanged += (_, _) =>
         {
@@ -66,13 +65,6 @@ public partial class SetupViewModel : ViewModelBase
                 Sources.Add(folder.Path);
             }
         }
-
-        // moving inside the storage in use: its folder is the starting point
-        if (HasStoredAccess)
-        {
-            Folder = manager.Config.Storage!.Folder;
-            Search = LookForBackupsAsync();
-        }
     }
 
     /// <summary>
@@ -83,15 +75,6 @@ public partial class SetupViewModel : ViewModelBase
     public bool IsSwitching { get; }
 
     public string SwitchNote => _manager.Config.Storage is { } storage ? Texts.SwitchNote(Texts.StorageName(storage)) : "";
-
-    /// <summary>
-    /// Whether the application holds the access data of an Imagepixel Storage already.
-    /// Then another folder inside that storage can be chosen without the setup code.
-    /// </summary>
-    public bool HasStoredAccess { get; }
-
-    /// <summary>Whether the access data the application holds is what the connection is made with.</summary>
-    public bool UsesStoredAccess => HasStoredAccess && IsImagepixel && string.IsNullOrWhiteSpace(SetupCodeText);
 
     [RelayCommand]
     private void Back() => _main.ShowDashboard();
@@ -295,18 +278,12 @@ public partial class SetupViewModel : ViewModelBase
         IReadOnlyList<string> found;
         try
         {
-            if (CodeAccepted)
-            {
-                found = await _main.FindBackupFolders(StorageFromFields(""), SecretAccessKey.Trim());
-            }
-            else if (HasStoredAccess && string.IsNullOrWhiteSpace(SetupCodeText))
-            {
-                found = await _main.FindBackupFolders(null, null);
-            }
-            else
+            if (!CodeAccepted)
             {
                 return;
             }
+
+            found = await _main.FindBackupFolders(StorageFromFields(""), SecretAccessKey.Trim());
         }
         catch (Exception)
         {
@@ -414,11 +391,8 @@ public partial class SetupViewModel : ViewModelBase
         var secret = IsImagepixel ? SecretAccessKey.Trim() : null;
         var apiToken = IsImagepixel ? _apiToken : null;
 
-        // another folder of the storage in use needs no setup code: the access data is there
-        var stored = UsesStoredAccess;
-        Task<RepositoryState> Connect(bool create) => stored
-            ? _manager.ConnectToFolderAsync(folder, Password, create)
-            : _manager.ConnectAsync(storage, Password, secret, createIfMissing: create, apiToken: apiToken);
+        Task<RepositoryState> Connect(bool create) =>
+            _manager.ConnectAsync(storage, Password, secret, createIfMissing: create, apiToken: apiToken);
 
         IsBusy = true;
         BusyText = IsRestore ? "Backup wird geöffnet …" : "Verbindung wird geprüft …";
@@ -514,7 +488,7 @@ public partial class SetupViewModel : ViewModelBase
 
         if (IsImagepixel)
         {
-            if (!CodeAccepted && !UsesStoredAccess)
+            if (!CodeAccepted)
             {
                 return HasCodeProblem ? Texts.SetupCodeProblem : Texts.SetupCodeMissing;
             }

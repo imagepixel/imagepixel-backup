@@ -151,6 +151,17 @@ public sealed class GuidePictures : IDisposable
         window.Height = 300;
         ScreenCapture.Save(window, "guide", "speicher-warnung");
 
+        // the page of a destination, about to move "Dokumente" into a folder of its own
+        main.FindBackupFolders = (_, _) => Task.FromResult<IReadOnlyList<string>>(["", "Notebook"]);
+        dashboard.Folders.Single(folder => folder.Path == Documents).ChangeDestinationCommand.Execute(null);
+        var page = Assert.IsType<DestinationViewModel>(main.CurrentPage);
+        await page.Search;
+        page.Destination = "Notebook";
+        page.DeleteOld = true;
+        window.Height = 830;
+        ScreenCapture.Save(window, "guide", "ziel");
+        page.CancelCommand.Execute(null);
+
         await main.ShutdownAsync();
         window.Close();
     }

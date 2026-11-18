@@ -23,11 +23,13 @@
                          Background="Transparent">
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:SnapshotItemViewModel">
-                            <Grid ColumnDefinitions="190,*,Auto" ColumnSpacing="12">
+                            <Grid ColumnDefinitions="190,*,Auto,Auto" ColumnSpacing="12">
                                 <TextBlock Text="{Binding Time}" />
                                 <TextBlock Grid.Column="1" Text="{Binding FolderName}" FontWeight="Medium"
                                            TextTrimming="CharacterEllipsis" />
-                                <TextBlock Grid.Column="2" Classes="subtle" Text="{Binding Details}" />
+                                <TextBlock Grid.Column="2" Classes="subtle" Text="{Binding Destination}"
+                                           IsVisible="{Binding HasDestination}" />
+                                <TextBlock Grid.Column="3" Classes="subtle" Text="{Binding Details}" />
                             </Grid>
                         </DataTemplate>
                     </ListBox.ItemTemplate>

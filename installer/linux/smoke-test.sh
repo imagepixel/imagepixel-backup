@@ -9,7 +9,7 @@
 # Must run as root on a system that may be changed, such as a container:
 #
 #   docker run --rm -v "$PWD:/src:ro" ubuntu:rolling bash /src/installer/linux/smoke-test.sh \
-#       /src/artifacts/linux/imagepixel-backup_0.1.6_amd64.deb
+#       /src/artifacts/linux/imagepixel-backup_0.1.7_amd64.deb
 set -euo pipefail
 
 package="$(realpath "$1")"
@@ -41,6 +41,8 @@ desktop-file-validate /usr/share/applications/imagepixel-backup.desktop
 
 echo "Starting the restic inside ..."
 /opt/imagepixel-backup/restic version
+echo "Starting the rclone inside ..."
+/opt/imagepixel-backup/rclone version
 
 work="$(mktemp -d)"
 export IMAGEPIXEL_BACKUP_DATA="$work/settings"

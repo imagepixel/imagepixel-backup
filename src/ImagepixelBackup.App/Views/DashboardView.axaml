@@ -20,7 +20,7 @@
                                TextTrimming="CharacterEllipsis" />
                 </StackPanel>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <Button Content="Ziel ändern" Command="{Binding ChangeStorageCommand}" />
+                    <Button Content="Speicher wechseln" Command="{Binding ChangeStorageCommand}" />
                     <Button Content="Info" Command="{Binding ShowAboutCommand}" />
                 </StackPanel>
             </Grid>
@@ -130,6 +130,22 @@
                                                    IsVisible="{Binding HasExclusions}" />
                                     </StackPanel>
 
+                                    <!-- where in the storage the backups of this folder go; changed on a page of its own -->
+                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                        <Button Content="Ziel …" Command="{Binding ChangeDestinationCommand}"
+                                                IsEnabled="{Binding IsIdle}" />
+                                        <TextBlock Classes="subtle" Text="{Binding DestinationText}" VerticalAlignment="Center" />
+                                    </StackPanel>
+
+                                    <!-- old backups at a destination the folder left, waiting to be deleted -->
+                                    <Border Classes="note" IsVisible="{Binding HasCleanup}">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                            <TextBlock Text="{Binding CleanupText}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                            <Button Grid.Column="1" Content="Doch behalten" VerticalAlignment="Center"
+                                                    Command="{Binding KeepOldBackupsCommand}" />
+                                        </Grid>
+                                    </Border>
+
                                     <TextBlock Classes="subtle" Text="{Binding CloudHint}"
                                                IsVisible="{Binding IsCloudFolder}" />
 
@@ -186,6 +202,18 @@
                             <TextBlock FontSize="15" FontWeight="SemiBold" Text="Als Laufwerk öffnen" />
                             <TextBlock Classes="subtle" Text="{x:Static local:Texts.DriveHint}" />
                             <StackPanel Spacing="8" Margin="0,4,0,0" IsVisible="{Binding IsNotMounted}">
+                                <!-- with backups in more than one place, the customer picks which one the drive shows -->
+                                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasMountDestinations}">
+                                    <TextBlock Text="Ziel" VerticalAlignment="Center" />
+                                    <ComboBox ItemsSource="{Binding MountDestinations}" SelectedItem="{Binding SelectedMountDestination}"
+                                              MinWidth="160" IsEnabled="{Binding CanMount}">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:FoundBackup">
+                                                <TextBlock Text="{Binding Label}" />
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </StackPanel>
                                 <!-- Windows: the letter the drive will get; the customer may pick another free one -->
                                 <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding OffersDriveLetter}">
                                     <TextBlock Text="{x:Static local:Texts.DriveLetterLabel}" VerticalAlignment="Center" />
@@ -197,9 +225,14 @@
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Button Classes="accent" Content="Laufwerk öffnen"
                                             Command="{Binding MountCommand}" IsEnabled="{Binding CanMount}" />
+                                    <!-- the same backups the way they lie in the storage, encrypted -->
+                                    <Button Content="Verschlüsselt öffnen" Command="{Binding OpenEncryptedCommand}"
+                                            IsEnabled="{Binding CanMount}" IsVisible="{Binding CanOpenEncrypted}" />
                                     <ProgressBar IsIndeterminate="True" Width="90" VerticalAlignment="Center"
                                                  IsVisible="{Binding IsMounting}" />
                                 </StackPanel>
+                                <TextBlock Classes="subtle" Text="{x:Static local:Texts.EncryptedHint}"
+                                           IsVisible="{Binding CanOpenEncrypted}" />
                             </StackPanel>
                             <StackPanel Spacing="8" Margin="0,4,0,0" IsVisible="{Binding IsMounted}">
                                 <TextBlock Text="{Binding MountText}" FontWeight="Medium"

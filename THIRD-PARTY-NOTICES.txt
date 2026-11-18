@@ -42,6 +42,20 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
+rclone
+------
+https://rclone.org
+
+Imagepixel Backup runs the rclone program as released by the rclone project,
+without changes, to show the storage read-only as it is, with the encrypted
+files of the backup. It is part of the versions for Windows and Linux. rclone
+includes third-party Go modules; they are listed in the go.mod file of the
+rclone source code at https://github.com/rclone/rclone.
+
+Copyright (C) 2012 by Nick Craig-Wood http://www.craig-wood.com/nick/
+Licensed under the MIT License (text below).
+
+
 WinFsp
 ------
 https://github.com/winfsp/winfsp

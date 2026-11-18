@@ -138,6 +138,36 @@ public partial class FolderItemViewModel : ViewModelBase
         OnPropertyChanged(nameof(HasExclusions));
     }
 
+    /// <summary>Where in the storage the backups of this folder go.</summary>
+    public string DestinationText => Texts.DestinationLine(_manager.Config.Storage, _manager.DestinationOf(Folder));
+
+    /// <summary>What waits to be deleted at destinations the folder no longer goes to, or nothing.</summary>
+    public string CleanupText => string.Join(
+        " ", _manager.CleanupsOf(Folder).Select(cleanup => Texts.CleanupPending(_manager.Config.Storage, cleanup, DateTimeOffset.Now)));
+
+    public bool HasCleanup => _manager.CleanupsOf(Folder).Count > 0;
+
+    public void RefreshDestination()
+    {
+        OnPropertyChanged(nameof(DestinationText));
+        OnPropertyChanged(nameof(CleanupText));
+        OnPropertyChanged(nameof(HasCleanup));
+        RefreshStatus();
+    }
+
+    /// <summary>Opens the page where the customer chooses where in the storage this folder goes.</summary>
+    [RelayCommand]
+    private void ChangeDestination() => _dashboard.ShowDestination(this);
+
+    /// <summary>Keeps the old backups after all, which were to be deleted.</summary>
+    [RelayCommand]
+    private void KeepOldBackups()
+    {
+        _manager.KeepOldBackups(Folder);
+        RefreshDestination();
+        _dashboard.StatusLine = Texts.OldBackupsKept(Name);
+    }
+
     [RelayCommand]
     private void EditExclusions() => _dashboard.ShowExclusions(this);
 

@@ -45,6 +45,10 @@ public sealed class Snapshot
 
     [JsonPropertyName("summary")]
     public SnapshotSummary? Summary { get; set; }
+
+    /// <summary>The destination in the storage that holds the snapshot, see <see cref="BackupFolder.Destination"/>.</summary>
+    [JsonIgnore]
+    public string Destination { get; set; } = "";
 }
 
 public sealed class SnapshotSummary

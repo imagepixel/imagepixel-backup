@@ -193,7 +193,6 @@ public sealed class WalkthroughTests : IDisposable
         await setup.Search;
         Assert.Equal([("kunde-4711", "geheim")], lookedInto);
         Assert.Equal(["Ohne Ordner (direkt im Speicher)", "Notebook"], setup.FoundBackups.Select(backup => backup.Label));
-        Assert.False(setup.HasStoredAccess);
 
         // the folder inside the storage is optional, and what cannot be one is said while typing
         Assert.Equal("", setup.Folder);
@@ -793,7 +792,7 @@ public sealed class WalkthroughTests : IDisposable
         window.Show();
         var dashboard = Assert.IsType<DashboardViewModel>(main.CurrentPage);
 
-        // a click on "Ziel ändern" only opens the setup
+        // a click on "Speicher wechseln" only opens the setup
         dashboard.ChangeStorageCommand.Execute(null);
         var setup = Assert.IsType<SetupViewModel>(main.CurrentPage);
         Assert.True(setup.IsSwitching);
@@ -801,8 +800,6 @@ public sealed class WalkthroughTests : IDisposable
         Assert.Contains("Sicherungen laufen weiter", setup.SwitchNote);
         Assert.Equal([SourceFolder], setup.Sources);
 
-        // a backup on a disk has no access data to use again for Imagepixel Storage
-        Assert.False(setup.HasStoredAccess);
         Assert.Empty(setup.FoundBackups);
         Capture(window, "14-speicher-wechseln");
 
@@ -854,110 +851,147 @@ public sealed class WalkthroughTests : IDisposable
     }
 
     [AvaloniaFact]
-    public async Task Another_folder_of_the_storage_in_use_needs_no_setup_code()
+    public async Task Each_folder_has_a_destination_of_its_own()
     {
-        // a computer that backs up to the folder "Notebook" of its Imagepixel Storage
-        new ConfigStore(DataFolder).Save(new AppConfig
-        {
-            Storage = new StorageSettings
-            {
-                Kind = StorageKind.ImagepixelStorage,
-                Bucket = "kunde-4711",
-                AccessKeyId = "ABCDEFGHIJKLMNOPQRST",
-                Folder = "Notebook",
-            },
-            TermsAccepted = Texts.TermsVersion,
-            Folders = { new BackupFolder { Path = SourceFolder, Schedule = ScheduleKind.Manual } },
-        });
-        var secrets = new MemorySecretStore();
-        secrets.Set(SecretNames.RepositoryPassword, Password);
-        secrets.Set(SecretNames.SecretAccessKey, "geheim");
+        var restic = ResticClient.FindRestic();
+        Assert.SkipWhen(restic is null, "restic has not been built");
 
-        var manager = new BackupManager(new ConfigStore(DataFolder), secrets, "restic");
+        // two folders on a USB disk, both saved directly into the folder of the backup
+        var photosFolder = Path.Combine(_root, "Fotos");
+        Directory.CreateDirectory(photosFolder);
+        File.WriteAllText(Path.Combine(photosFolder, "Urlaub.jpg"), "ein Bild");
+        var manager = new BackupManager(new ConfigStore(DataFolder), new MemorySecretStore(), restic!);
+        manager.AcceptTerms(Texts.TermsVersion);
+        await manager.ConnectAsync(
+            new StorageSettings { Kind = StorageKind.LocalFolder, LocalPath = StorageFolder }, Password, null, createIfMissing: true);
+        var documents = manager.AddFolder(SourceFolder);
+        var photos = manager.AddFolder(photosFolder);
+        documents.Schedule = photos.Schedule = ScheduleKind.Manual;
+        documents.ExclusionsDecided = photos.ExclusionsDecided = true;
+        manager.Save();
+        await manager.BackupAsync(documents);
+        await manager.BackupAsync(photos);
+
         var main = new MainViewModel(manager, []);
         main.LoadStorageStatus = () => Task.FromResult<StorageStatus?>(null);
-        var lookedInto = new List<(string? Bucket, string? Secret)>();
-        main.FindBackupFolders = (storage, secret) =>
-        {
-            lookedInto.Add((storage?.Bucket, secret));
-            return Task.FromResult<IReadOnlyList<string>>(["", "Notebook"]);
-        };
-
         var window = new MainWindow { DataContext = main };
         window.Show();
-
-        // the overview names the folder next to the storage
         var dashboard = Assert.IsType<DashboardViewModel>(main.CurrentPage);
-        Assert.Equal("Imagepixel Storage · kunde-4711 · Ordner Notebook", dashboard.StorageName);
-        Capture(window, "14a-uebersicht-mit-ordner-im-speicher");
+        var item = dashboard.Folders.Single(folder => folder.Path == SourceFolder);
+        Assert.Equal("Ziel: direkt im Backup-Ordner", item.DestinationText);
+        Assert.False(item.HasCleanup);
+        Assert.False(dashboard.HasMountDestinations);
 
-        dashboard.ChangeStorageCommand.Execute(null);
-        var setup = Assert.IsType<SetupViewModel>(main.CurrentPage);
-        Assert.True(setup.IsSwitching);
-        Assert.True(setup.HasStoredAccess);
-        Assert.Contains("Ordner Notebook", setup.SwitchNote);
+        // the page of the destination shows what the storage holds
+        item.ChangeDestinationCommand.Execute(null);
+        var page = Assert.IsType<DestinationViewModel>(main.CurrentPage);
+        await page.Search;
+        Assert.Equal(["Ohne Ordner (direkt im Backup-Ordner)"], page.FoundBackups.Select(backup => backup.Label));
+        Assert.Equal("Bisher: Ohne Ordner (direkt im Backup-Ordner)", page.CurrentText);
+        Assert.False(page.IsChange);
+        Capture(window, "18-ziel-eines-ordners");
 
-        // the folder in use is the starting point, and the storage that is connected is
-        // looked into with the access data the application holds: nothing is passed on
-        Assert.Equal("Notebook", setup.Folder);
-        await setup.Search;
-        Assert.Equal([(null, null)], lookedInto);
-        Assert.Equal(["Ohne Ordner (direkt im Speicher)", "Notebook"], setup.FoundBackups.Select(backup => backup.Label));
+        // a name that cannot be a destination is said while typing
+        page.Destination = "Büro?";
+        Assert.True(page.HasProblem);
+        await page.SaveCommand.ExecuteAsync(null);
+        Assert.Contains("nur Buchstaben", page.ErrorMessage);
 
-        setup.ChooseModeCommand.Execute("Backup");
-        Assert.True(setup.UsesStoredAccess);
-        window.Height = 1500;
-        Capture(window, "14b-ziel-aendern-anderer-ordner");
+        // another destination asks what becomes of the old backups, and answers nothing for the customer
+        page.Destination = "Dokumente Notebook";
+        Assert.True(page.IsChange);
+        Assert.False(page.HasAnswered);
+        Assert.Contains("„Dokumente“ direkt im Backup-Ordner", page.OldBackupsQuestion);
+        await page.SaveCommand.ExecuteAsync(null);
+        Assert.Equal(Texts.OldBackupsUnanswered, page.ErrorMessage);
+        Assert.Null(documents.Destination);
+
+        page.DeleteOld = true;
+        Assert.Equal("30 Tagen", page.DayOptions[page.DayIndex]);
+        window.Height = 1000;
+        Capture(window, "18a-ziel-aendern-frage");
         window.Height = 700;
-
-        // without a code the next thing asked for is the password, not the code
-        setup.Folder = "Büro/PC";
-        await setup.ConnectCommand.ExecuteAsync(null);
-        Assert.Contains("mindestens 8 Zeichen", setup.ErrorMessage);
-
-        // a name the storage cannot keep apart is turned down before anything is contacted
-        setup.Password = Password;
-        setup.Folder = "data";
-        await setup.ConnectCommand.ExecuteAsync(null);
-        Assert.Contains("verwendet der Speicher selbst", setup.ErrorMessage);
-
-        // a code that is entered counts, also a broken one: the access data in store does not stand in for it
-        setup.Folder = "Büro/PC";
-        setup.SetupCodeText = "IPB1-kaputt";
-        Assert.False(setup.UsesStoredAccess);
-        await setup.ConnectCommand.ExecuteAsync(null);
-        Assert.Equal(Texts.SetupCodeProblem, setup.ErrorMessage);
-        Assert.Empty(setup.FoundBackups);
-
-        // the code of another storage is looked into with what the code carries
-        setup.SetupCodeText = new SetupCode("kunde-0815", "ZYXWVUTSRQPONMLKJIHG", "anderes-geheimnis", "eu-central-2").Encode();
-        await setup.Search;
-        Assert.Equal(("kunde-0815", "anderes-geheimnis"), lookedInto[^1]);
-
-        // taking the code out again leads back to the storage in use
-        setup.SetupCodeText = "";
-        await setup.Search;
-        Assert.Equal((null, null), lookedInto[^1]);
-        Assert.True(setup.UsesStoredAccess);
-
-        // nothing of all this changed what is connected
-        Assert.Equal("Notebook", manager.Config.Storage!.Folder);
-        Assert.Equal("Notebook", new ConfigStore(DataFolder).Load().Storage!.Folder);
-        setup.BackCommand.Execute(null);
+        await page.SaveCommand.ExecuteAsync(null);
+        Assert.Null(page.ErrorMessage);
         Assert.Same(dashboard, main.CurrentPage);
+
+        // the folder goes to its new destination, a backup of its own; the other folder stays where it was
+        Assert.Equal("Dokumente Notebook", documents.Destination);
+        Assert.Equal("Ziel: Ordner „Dokumente Notebook“", item.DestinationText);
+        Assert.True(File.Exists(Path.Combine(StorageFolder, "Dokumente Notebook", "config")));
+        Assert.Null(documents.LastSuccess);
+        Assert.Equal("", manager.DestinationOf(photos));
+        Assert.Contains("ab jetzt im Ordner „Dokumente Notebook“ gesichert", dashboard.StatusLine);
+
+        // the old backups wait for their day, and can be kept after all
+        var cleanup = Assert.Single(manager.Config.Cleanups);
+        Assert.Equal("", cleanup.Destination);
+        Assert.InRange(cleanup.DueAt, DateTimeOffset.Now.AddDays(29.9), DateTimeOffset.Now.AddDays(30.1));
+        Assert.True(item.HasCleanup);
+        Assert.Contains("direkt im Backup-Ordner werden ab dem", item.CleanupText);
+        Assert.True(dashboard.HasMountDestinations);
+        Capture(window, "18b-uebersicht-ziel-geaendert");
+
+        item.KeepOldBackupsCommand.Execute(null);
+        Assert.Empty(manager.Config.Cleanups);
+        Assert.False(item.HasCleanup);
+        Assert.Contains("bleiben erhalten", dashboard.StatusLine);
+
+        // the next backup lands at the new destination
+        await item.BackupNowCommand.ExecuteAsync(null);
+        await WaitUntilAsync(() => !item.IsRunning);
+        Assert.NotNull(documents.LastSuccess);
+        Assert.Null(documents.LastError);
+
+        // the restore page lists the states of both places and says where each lies
+        dashboard.RestoreCommand.Execute(null);
+        var restore = Assert.IsType<RestoreViewModel>(main.CurrentPage);
+        await WaitUntilAsync(() => !restore.IsLoading);
+        Assert.Equal(3, restore.Snapshots.Count);
+        Assert.Equal("Dokumente Notebook", restore.Snapshots[0].Destination);
+        Assert.All(restore.Snapshots.Skip(1), snapshot => Assert.Equal("Ohne Ordner (direkt im Backup-Ordner)", snapshot.Destination));
+        Capture(window, "18c-wiederherstellen-zwei-ziele");
+
+        // a state is restored from where it lies
+        restore.SelectedSnapshot = restore.Snapshots[0];
+        restore.TargetFolder = RestoreFolder;
+        await restore.RestoreCommand.ExecuteAsync(null);
+        Assert.True(restore.IsDone, restore.Message);
+        Assert.True(File.Exists(Path.Combine(RestoreFolder, "Dokumente", "Brief.txt")));
+        restore.BackCommand.Execute(null);
+
+        // moving on once more, with the old backups deleted when their day has come
+        item.ChangeDestinationCommand.Execute(null);
+        page = Assert.IsType<DestinationViewModel>(main.CurrentPage);
+        page.Destination = "Archiv";
+        page.DeleteOld = true;
+        await page.SaveCommand.ExecuteAsync(null);
+        var pending = Assert.Single(manager.Config.Cleanups);
+        Assert.Equal("Dokumente Notebook", pending.Destination);
+        pending.DueAt = DateTimeOffset.Now.AddMinutes(-1);
+
+        await dashboard.RunDueCleanupsAsync();
+        Assert.Empty(manager.Config.Cleanups);
+        Assert.Contains("„Dokumente“ im Ordner „Dokumente Notebook“ wurde gelöscht. Dort liegt jetzt nichts mehr.", dashboard.StatusLine);
+        Assert.False(Directory.Exists(Path.Combine(StorageFolder, "Dokumente Notebook")));
+        Assert.False(item.HasCleanup);
+
+        // the backups at the first place are untouched
+        Assert.Equal(2, (await new ResticClient(restic!, new RepositoryAccess(StorageFolder, Password)).GetSnapshotsAsync()).Count);
 
         window.Close();
         await main.ShutdownAsync();
     }
 
     /// <summary>
-    /// The same walk with a real storage behind it: moving to another folder without the
-    /// setup code, and backing up there. Runs only where a bucket for tests is named in
+    /// The same with a real storage behind it: another destination for a folder, a backup
+    /// there, and the old backups deleted. Runs only where a bucket for tests is named in
     /// the environment (IPB_TEST_BUCKET, IPB_TEST_ACCESS_KEY_ID,
-    /// IPB_TEST_SECRET_ACCESS_KEY, IPB_TEST_REGION), and leaves two small backups in it.
+    /// IPB_TEST_SECRET_ACCESS_KEY, IPB_TEST_REGION). It keeps a small backup in the folder
+    /// "Test Büro Notebook" and removes the destination it makes for itself.
     /// </summary>
     [AvaloniaFact]
-    public async Task Customer_moves_to_another_folder_of_a_real_storage()
+    public async Task Customer_changes_the_destination_of_a_folder_in_a_real_storage()
     {
         var restic = ResticClient.FindRestic();
         Assert.SkipWhen(restic is null, "restic has not been built");
@@ -971,7 +1005,7 @@ public sealed class WalkthroughTests : IDisposable
 
         const string password = "nur-ein-test-passwort";
         const string notebook = "Test Büro Notebook";
-        const string second = "Test Büro/Zweiter PC";
+        var fresh = "Test Ziel " + Guid.NewGuid().ToString("N")[..8];
         var storage = new StorageSettings
         {
             Kind = StorageKind.ImagepixelStorage,
@@ -984,43 +1018,103 @@ public sealed class WalkthroughTests : IDisposable
         var manager = new BackupManager(new ConfigStore(DataFolder), new MemorySecretStore(), restic!);
         manager.AcceptTerms(Texts.TermsVersion);
         Assert.Equal(RepositoryState.Ready, await manager.ConnectAsync(storage, password, secret, createIfMissing: true));
-        manager.AddFolder(SourceFolder).Schedule = ScheduleKind.Manual;
+        var folder = manager.AddFolder(SourceFolder);
+        folder.Schedule = ScheduleKind.Manual;
+        folder.ExclusionsDecided = true;
         manager.Save();
+        await manager.BackupAsync(folder);
 
         var main = new MainViewModel(manager, []);
         main.LoadStorageStatus = () => Task.FromResult<StorageStatus?>(null);
         var window = new MainWindow { DataContext = main };
         window.Show();
         var dashboard = Assert.IsType<DashboardViewModel>(main.CurrentPage);
-        Assert.EndsWith(" · Ordner " + notebook, dashboard.StorageName);
+        var item = Assert.Single(dashboard.Folders);
+        Assert.Equal($"Ziel: Ordner „{notebook}“", item.DestinationText);
 
-        // the storage is looked into for real: the folder in use is among what it holds
-        dashboard.ChangeStorageCommand.Execute(null);
-        var setup = Assert.IsType<SetupViewModel>(main.CurrentPage);
-        await setup.Search;
-        Assert.Contains(setup.FoundBackups, backup => backup.Folder == notebook);
+        // the storage is looked into for real
+        item.ChangeDestinationCommand.Execute(null);
+        var page = Assert.IsType<DestinationViewModel>(main.CurrentPage);
+        await page.Search;
+        Assert.Contains(page.FoundBackups, backup => backup.Folder == notebook);
 
-        // another folder, no setup code: the password is all that is typed
-        setup.ChooseModeCommand.Execute("Backup");
-        setup.Folder = second;
-        setup.Password = password;
-        setup.PasswordRepeat = password;
-        await setup.ConnectCommand.ExecuteAsync(null);
-        Assert.Null(setup.ErrorMessage);
+        page.Destination = fresh;
+        page.DeleteOld = true;
+        await page.SaveCommand.ExecuteAsync(null);
+        Assert.Null(page.ErrorMessage);
+        Assert.Equal(fresh, folder.Destination);
 
-        var next = Assert.IsType<DashboardViewModel>(main.CurrentPage);
-        Assert.NotSame(dashboard, next);
-        Assert.EndsWith(" · Ordner " + second, next.StorageName);
-        Assert.Equal(second, new ConfigStore(DataFolder).Load().Storage!.Folder);
-
-        // the folder that is backed up came along and is saved there
-        var item = Assert.Single(next.Folders);
-        Assert.Null(item.Folder.LastSuccess);
         await item.BackupNowCommand.ExecuteAsync(null);
         await WaitUntilAsync(() => !item.IsRunning);
-        Assert.NotNull(item.Folder.LastSuccess);
-        Assert.Null(item.Folder.LastError);
-        Assert.NotEmpty(await manager.GetSnapshotsAsync());
+        Assert.Null(folder.LastError);
+        Assert.NotNull(folder.LastSuccess);
+        var all = await manager.GetSnapshotsAsync();
+        Assert.Single(all, snapshot => snapshot.Destination == fresh);
+        Assert.Contains(all, snapshot => snapshot.Destination == notebook && snapshot.Paths.Any(path => FolderRules.IsSameFolder(path, SourceFolder)));
+
+        // the old backup of this folder is deleted when its day has come
+        Assert.Single(manager.Config.Cleanups).DueAt = DateTimeOffset.Now.AddMinutes(-1);
+        await dashboard.RunDueCleanupsAsync();
+        Assert.Empty(manager.Config.Cleanups);
+        Assert.Contains("wurde gelöscht", dashboard.StatusLine);
+        all = await manager.GetSnapshotsAsync();
+        Assert.DoesNotContain(all, snapshot => snapshot.Destination == notebook && snapshot.Paths.Any(path => FolderRules.IsSameFolder(path, SourceFolder)));
+
+        // going back removes the destination of this run, so that the test leaves nothing behind
+        await manager.ChangeDestinationAsync(folder, notebook, deleteOldAfterDays: 0);
+        await dashboard.RunDueCleanupsAsync();
+        Assert.Contains("Dort liegt jetzt nichts mehr", dashboard.StatusLine);
+        var left = new List<string>();
+        await foreach (var (key, _) in S3Client.For(new HttpClient(), storage, secret!).ListObjectsAsync(fresh + "/"))
+        {
+            left.Add(key);
+        }
+
+        Assert.Empty(left);
+
+        window.Close();
+        await main.ShutdownAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task The_encrypted_files_of_a_backup_on_a_disk_are_shown_in_the_file_manager()
+    {
+        var restic = ResticClient.FindRestic();
+        Assert.SkipWhen(restic is null, "restic has not been built");
+
+        var manager = new BackupManager(new ConfigStore(DataFolder), new MemorySecretStore(), restic!);
+        manager.AcceptTerms(Texts.TermsVersion);
+        await manager.ConnectAsync(
+            new StorageSettings { Kind = StorageKind.LocalFolder, LocalPath = StorageFolder }, Password, null, createIfMissing: true);
+        var folder = manager.AddFolder(SourceFolder);
+        folder.Schedule = ScheduleKind.Manual;
+        manager.Save();
+
+        var main = new MainViewModel(manager, []);
+        main.LoadStorageStatus = () => Task.FromResult<StorageStatus?>(null);
+        var opened = new List<string>();
+        main.OpenInFileManager = opened.Add;
+        var window = new MainWindow { DataContext = main };
+        window.Show();
+        var dashboard = Assert.IsType<DashboardViewModel>(main.CurrentPage);
+
+        // offered where the computer shows drives; a folder on a disk needs no rclone
+        Assert.Equal(BackupManager.IsMountSupported, dashboard.CanOpenEncrypted);
+        Assert.SkipUnless(dashboard.CanOpenEncrypted, "this computer cannot show drives");
+        Capture(window, "19-verschluesselt-oeffnen");
+
+        await dashboard.OpenEncryptedCommand.ExecuteAsync(null);
+        Assert.Equal([StorageFolder], opened);
+        Assert.Contains("verschlüsselt, mit Prüfsummen als Namen", dashboard.StatusLine);
+        Assert.False(dashboard.IsMounted);
+
+        // a destination of its own lies in a folder of its own, and the choice of the drive leads there
+        await manager.ChangeDestinationAsync(folder, "Notebook", deleteOldAfterDays: null);
+        dashboard.RefreshDestinations();
+        Assert.True(dashboard.HasMountDestinations);
+        dashboard.SelectedMountDestination = dashboard.MountDestinations.Single(option => option.Folder == "Notebook");
+        await dashboard.OpenEncryptedCommand.ExecuteAsync(null);
+        Assert.Equal(Path.Combine(StorageFolder, "Notebook"), opened[^1]);
 
         window.Close();
         await main.ShutdownAsync();

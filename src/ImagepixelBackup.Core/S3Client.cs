@@ -53,6 +53,16 @@ public sealed class S3Client(
         await EnsureSuccessAsync(response, cancellationToken);
     }
 
+    /// <summary>Deletes an object. An object that does not exist counts as deleted.</summary>
+    public async Task DeleteObjectAsync(string key, CancellationToken cancellationToken = default)
+    {
+        using var response = await SendAsync(HttpMethod.Delete, ObjectPath(key), "", null, null, cancellationToken);
+        if (response.StatusCode != HttpStatusCode.NotFound)
+        {
+            await EnsureSuccessAsync(response, cancellationToken);
+        }
+    }
+
     /// <summary>Lists the objects of the bucket whose keys start with a prefix.</summary>
     public async IAsyncEnumerable<(string Key, long Size)> ListObjectsAsync(
         string prefix = "",

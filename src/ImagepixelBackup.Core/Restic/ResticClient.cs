@@ -72,6 +72,28 @@ public sealed class ResticClient(string resticPath, RepositoryAccess access)
     }
 
     /// <summary>
+    /// Removes snapshots, and then the data that only they used. Snapshots of other
+    /// folders in the same repository keep everything they need.
+    /// </summary>
+    public async Task ForgetAsync(IReadOnlyList<string> snapshotIds, CancellationToken cancellationToken = default)
+    {
+        if (snapshotIds.Count == 0)
+        {
+            return;
+        }
+
+        // a command line of Windows holds about 32,000 characters, an ID takes 65 of them
+        foreach (var batch in snapshotIds.Chunk(200))
+        {
+            var forget = await RunAsync(["forget", .. batch], null, null, cancellationToken);
+            forget.ThrowIfFailed();
+        }
+
+        var prune = await RunAsync(["prune"], null, null, cancellationToken);
+        prune.ThrowIfFailed();
+    }
+
+    /// <summary>
     /// Backs up a folder. The folder is stored under its own name, without the path
     /// that leads to it, so that a snapshot starts with the folder itself.
     /// </summary>

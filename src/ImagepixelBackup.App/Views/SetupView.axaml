@@ -140,11 +140,6 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- moving inside the storage in use: the application has the access data already -->
-                        <Border Classes="note" Margin="0,8,0,0" IsVisible="{Binding HasStoredAccess}">
-                            <TextBlock Text="{x:Static local:Texts.StoredAccessNote}" TextWrapping="Wrap" />
-                        </Border>
-
                         <!-- the code carries the access keys, so it is shown as dots like a password -->
                         <TextBlock Classes="label" Text="Einrichtungscode" />
                         <TextBox Text="{Binding SetupCodeText}" PasswordChar="●"
