@@ -11,12 +11,18 @@ public sealed class BackupManager(
     ISecretStore secrets,
     string resticPath,
     ICloudFileSystem? cloudFiles = null,
-    StorageStatusService? storageStatus = null)
+    StorageStatusService? storageStatus = null,
+    BackupFinder? finder = null)
 {
+    // what the application asks the storage itself, besides what restic does
+    private static readonly HttpClient Http = new();
+
     private readonly ICloudFileSystem? _cloudFiles =
         cloudFiles ?? (OperatingSystem.IsWindows() ? new WindowsCloudFileSystem() : null);
 
-    private readonly StorageStatusService _storageStatus = storageStatus ?? new StorageStatusService(new HttpClient());
+    private readonly StorageStatusService _storageStatus = storageStatus ?? new StorageStatusService(Http);
+
+    private readonly BackupFinder _finder = finder ?? new BackupFinder(Http);
 
     private readonly Lock _saveLock = new();
     private readonly SemaphoreSlim _backupGate = new(1, 1);
@@ -70,6 +76,13 @@ public sealed class BackupManager(
 
         if (state == RepositoryState.Ready)
         {
+            // Another place holds other backups, or none yet. What the folders remember
+            // of their runs belongs to the place they ran against.
+            if (Config.Storage is { } previous && previous.RepositoryUrl != storage.RepositoryUrl)
+            {
+                Config.Folders = Config.Folders.Select(folder => folder.ForAnotherPlace()).ToList();
+            }
+
             secrets.Set(SecretNames.RepositoryPassword, password);
             secrets.Set(SecretNames.SecretAccessKey, storage.IsS3 ? secretAccessKey : null);
             secrets.Set(SecretNames.ApiToken, storage.IsS3 ? apiToken : null);
@@ -78,6 +91,55 @@ public sealed class BackupManager(
         }
 
         return state;
+    }
+
+    /// <summary>
+    /// Moves to another folder of the Imagepixel Storage that is connected, with the
+    /// access data the application already holds. Works like <see cref="ConnectAsync"/>:
+    /// the folder that was in use stays connected unless the password opens the other one.
+    /// </summary>
+    /// <param name="folder">The folder as <see cref="StorageFolder.Normalize"/> returns it, empty for none.</param>
+    public Task<RepositoryState> ConnectToFolderAsync(
+        string folder,
+        string password,
+        bool createIfMissing,
+        CancellationToken cancellationToken = default)
+    {
+        var current = Config.Storage is { IsS3: true } storage
+            ? storage
+            : throw new InvalidOperationException("No Imagepixel Storage has been set up.");
+
+        return ConnectAsync(
+            current.WithFolder(folder),
+            password,
+            secrets.Get(SecretNames.SecretAccessKey),
+            createIfMissing,
+            cancellationToken,
+            secrets.Get(SecretNames.ApiToken));
+    }
+
+    /// <summary>
+    /// Finds the folders of an Imagepixel Storage that hold a backup, see
+    /// <see cref="BackupFinder"/>. Without arguments it looks into the storage that is
+    /// connected, with the access data the application holds.
+    /// </summary>
+    public Task<IReadOnlyList<string>> FindBackupFoldersAsync(
+        StorageSettings? storage = null,
+        string? secretAccessKey = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (storage is null)
+        {
+            if (Config.Storage is not { IsS3: true } current)
+            {
+                return Task.FromResult<IReadOnlyList<string>>([]);
+            }
+
+            storage = current;
+            secretAccessKey = secrets.Get(SecretNames.SecretAccessKey);
+        }
+
+        return _finder.FindAsync(storage, secretAccessKey, cancellationToken);
     }
 
     /// <summary>Forgets the storage and its secrets. The backup itself is not touched.</summary>

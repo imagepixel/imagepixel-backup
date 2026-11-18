@@ -24,6 +24,7 @@ public partial class MainViewModel : ViewModelBase
     {
         _manager = manager;
         LoadStorageStatus = () => manager.GetStorageStatusAsync();
+        FindBackupFolders = (storage, secret) => manager.FindBackupFoldersAsync(storage, secret);
         CloudFolders = cloudFolders ?? CloudFolderDetector.Detect();
 
         if (manager.HasAcceptedTerms(Texts.TermsVersion))
@@ -64,6 +65,12 @@ public partial class MainViewModel : ViewModelBase
 
     /// <summary>Finds out how much storage is booked and used. Replaceable for tests.</summary>
     public Func<Task<StorageStatus?>> LoadStorageStatus { get; set; }
+
+    /// <summary>
+    /// Finds the folders of an Imagepixel Storage that hold a backup: of the storage and
+    /// key given, or of the one that is connected when both are null. Replaceable for tests.
+    /// </summary>
+    public Func<StorageSettings?, string?, Task<IReadOnlyList<string>>> FindBackupFolders { get; set; }
 
     /// <summary>Opens a folder or drive in the file manager. Replaceable for tests.</summary>
     public Action<string> OpenInFileManager { get; set; } = path =>
@@ -213,8 +220,9 @@ public partial class MainViewModel : ViewModelBase
     public void ShowAbout() => CurrentPage = new AboutViewModel(this, CurrentPage);
 
     /// <summary>
-    /// Shows the setup for moving to another storage. Nothing is forgotten or stopped
-    /// by this: the overview keeps running behind it, and the customer can go back.
+    /// Shows the setup for moving to another storage, or to another folder of the one
+    /// in use. Nothing is forgotten or stopped by this: the overview keeps running
+    /// behind it, and the customer can go back.
     /// </summary>
     public void ShowStorageChange() => CurrentPage = new SetupViewModel(_manager, this, switching: true);
 

@@ -50,6 +50,7 @@ public sealed class SecretFieldTests : IDisposable
         var manager = new BackupManager(new ConfigStore(_root), new MemorySecretStore(), "restic");
         manager.AcceptTerms(Texts.TermsVersion);
         var main = new MainViewModel(manager, []);
+        main.FindBackupFolders = (_, _) => Task.FromResult<IReadOnlyList<string>>([]);
         var window = new MainWindow { DataContext = main };
         window.Show();
 

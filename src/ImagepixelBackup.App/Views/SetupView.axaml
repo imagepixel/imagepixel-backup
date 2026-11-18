@@ -140,6 +140,11 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- moving inside the storage in use: the application has the access data already -->
+                        <Border Classes="note" Margin="0,8,0,0" IsVisible="{Binding HasStoredAccess}">
+                            <TextBlock Text="{x:Static local:Texts.StoredAccessNote}" TextWrapping="Wrap" />
+                        </Border>
+
                         <!-- the code carries the access keys, so it is shown as dots like a password -->
                         <TextBlock Classes="label" Text="Einrichtungscode" />
                         <TextBox Text="{Binding SetupCodeText}" PasswordChar="●"
@@ -148,6 +153,32 @@
                                    Foreground="{DynamicResource SuccessTextBrush}" IsVisible="{Binding CodeAccepted}" />
                         <TextBlock Margin="0,6,0,0" Text="{x:Static local:Texts.SetupCodeProblem}" TextWrapping="Wrap"
                                    Foreground="{DynamicResource ProblemTextBrush}" IsVisible="{Binding HasCodeProblem}" />
+
+                        <!-- the folder inside the storage: one each for several computers in one storage -->
+                        <TextBlock Classes="label" Text="{x:Static local:Texts.FolderLabel}" />
+                        <TextBox Text="{Binding Folder}" PlaceholderText="{x:Static local:Texts.FolderExample}" />
+                        <TextBlock Classes="subtle" Margin="0,6,0,0" Text="{Binding FolderHint}" />
+                        <TextBlock Margin="0,6,0,0" Text="{Binding FolderProblem}" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource ProblemTextBrush}" IsVisible="{Binding HasFolderProblem}" />
+
+                        <!-- what the storage already holds, one click instead of typing -->
+                        <StackPanel IsVisible="{Binding HasFoundBackups}" Spacing="6" Margin="0,12,0,0">
+                            <TextBlock Classes="subtle" Text="{Binding FoundBackupsNote}" />
+                            <ItemsControl ItemsSource="{Binding FoundBackups}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:FoundBackup">
+                                        <Button Content="{Binding Label}" Margin="0,0,8,6"
+                                                Command="{Binding #Root.((vm:SetupViewModel)DataContext).ChooseFoundBackupCommand}"
+                                                CommandParameter="{Binding}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
                     </StackPanel>
 
                     <StackPanel IsVisible="{Binding ShowLocalFields}">

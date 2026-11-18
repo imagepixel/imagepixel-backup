@@ -165,8 +165,47 @@ public static class Texts
 
     /// <summary>What the setup says when the customer came to move to another storage.</summary>
     public static string SwitchNote(string storage) =>
-        $"Du bist mit „{storage}“ verbunden. Daran ändert sich nichts, solange du hier keinen anderen Speicher einrichtest: "
-        + "Deine Sicherungen laufen weiter. Das Backup im bisherigen Speicher bleibt in jedem Fall erhalten.";
+        $"Du bist mit „{storage}“ verbunden. Daran ändert sich nichts, solange du hier kein anderes Ziel einrichtest: "
+        + "Deine Sicherungen laufen weiter. Das Backup am bisherigen Ort bleibt in jedem Fall erhalten.";
+
+    /// <summary>What the setup says when the application holds the access data of the storage already.</summary>
+    public const string StoredAccessNote =
+        "Deine Zugangsdaten sind hinterlegt. Für einen anderen Ordner im selben Speicher brauchst du den Einrichtungscode nicht noch einmal: "
+        + "Lass das Feld leer und trage unten den Ordner ein. Ein neuer Ordner beginnt als leeres Backup. "
+        + "Das bisherige wird nicht verschoben; es bleibt, wo es ist, und belegt weiter Speicher.";
+
+    public const string FolderLabel = "Ordner im Speicher (optional)";
+
+    public const string FolderExample = "z. B. Notebook";
+
+    public const string FolderHintBackup =
+        "Unter diesem Ordner legt das Programm deine Sicherungen im Speicher ab. So bleiben mehrere Rechner in einem Speicher getrennt. "
+        + "Ohne Angabe liegen sie direkt im Speicher.";
+
+    public const string FolderHintRestore =
+        "Trage den Ordner ein, wenn du beim Einrichten des Backups einen angegeben hast. Sonst lass das Feld leer.";
+
+    /// <summary>How a backup without a folder is called where the found backups are offered.</summary>
+    public const string NoFolder = "Ohne Ordner (direkt im Speicher)";
+
+    public const string FoundBackupsBackup =
+        "In deinem Speicher liegen schon Backups. Wähle eines aus, um es weiterzuführen, oder gib einen neuen Ordner an:";
+
+    public const string FoundBackupsRestore = "In deinem Speicher liegen diese Backups. Wähle aus, welches du öffnen möchtest:";
+
+    public const string NoBackupHereButElsewhere =
+        "An diesem Ort wurde kein Backup gefunden. In deinem Speicher liegen aber Backups an anderer Stelle: Wähle oben eines davon aus.";
+
+    /// <summary>Says what is wrong with the name of a folder in the storage, or null if nothing is.</summary>
+    public static string? FolderProblem(StorageFolderProblem problem) => problem switch
+    {
+        StorageFolderProblem.Characters =>
+            "Der Ordnername darf nur Buchstaben, Ziffern, Leerzeichen, Punkt, Bindestrich und Unterstrich enthalten. "
+            + "Unterordner trennst du mit einem Schrägstrich.",
+        StorageFolderProblem.Reserved => "Diesen Namen verwendet der Speicher selbst. Bitte wähle einen anderen.",
+        StorageFolderProblem.TooLong => $"Der Ordnername ist zu lang. Er darf höchstens {StorageFolder.MaxLength} Zeichen haben.",
+        _ => null,
+    };
 
     public const string SetupCodeAccepted = "Einrichtungscode erkannt.";
 
@@ -248,6 +287,8 @@ public static class Texts
 
     public static string StorageName(StorageSettings storage) => storage.Kind switch
     {
+        StorageKind.ImagepixelStorage when storage.Folder.Length > 0 =>
+            $"Imagepixel Storage · {storage.Bucket} · Ordner {storage.Folder}",
         StorageKind.ImagepixelStorage => $"Imagepixel Storage · {storage.Bucket}",
         _ => $"Ordner · {storage.LocalPath}",
     };

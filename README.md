@@ -13,6 +13,8 @@ then on. Your data is encrypted on your computer before it leaves it.
   click
 - Back up every hour, every day at a set time, or only on demand
 - Store the backup in Imagepixel Storage, or in a folder such as a USB drive
+- In Imagepixel Storage a backup can have a [folder of its own](docs/storage-folders.md),
+  so that several computers share one storage without their backups getting mixed up
 - On Windows, files of a cloud service that are only stored online are downloaded for the
   backup and freed up again once they are saved, so the disk does not fill up. Files set to
   always stay on the computer are left alone.
@@ -20,7 +22,8 @@ then on. Your data is encrypted on your computer before it leaves it.
 **Getting data back**
 
 - The first screen asks whether you want to back up or to restore. Restoring only needs
-  the place of the backup and its password, for example on a newly set up computer.
+  the place of the backup and its password, for example on a newly set up computer. The
+  backups a storage holds are offered to choose from.
 - Restore a folder from any earlier state
 - On Windows and Linux, open all backups as a read-only drive and copy single files out of
   it. Nothing can be changed through the drive, so a backup cannot be damaged by browsing it.
@@ -57,7 +60,7 @@ once, at its first start, and asks to confirm it. They come with every download.
 
 ## Status
 
-Early development, version 0.1.5. The
+Early development, version 0.1.6. The
 [pre-release](https://github.com/imagepixel/imagepixel-backup/releases) has downloads for
 Windows, macOS and Linux. None of them is signed yet.
 
@@ -154,7 +157,7 @@ tests/run-on-linux.sh
 
 # installs a package on a fresh system and checks that the application starts
 docker run --rm --cap-add IPC_LOCK -v "$PWD:/src" ubuntu:rolling \
-    bash /src/installer/linux/smoke-test.sh /src/artifacts/linux/imagepixel-backup_0.1.5_amd64.deb
+    bash /src/installer/linux/smoke-test.sh /src/artifacts/linux/imagepixel-backup_0.1.6_amd64.deb
 ```
 
 Both packages put the application with the .NET runtime and restic into

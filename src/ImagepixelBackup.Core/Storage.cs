@@ -48,12 +48,105 @@ public sealed class StorageSettings
     /// </summary>
     public string ApiUrl { get; set; } = "";
 
+    /// <summary>
+    /// The folder inside the bucket that holds the backup, for
+    /// <see cref="StorageKind.ImagepixelStorage"/>, in the form
+    /// <see cref="StorageFolder.Normalize"/> gives it. Empty if the backup lies directly
+    /// in the bucket, which is where every backup made before folders existed is.
+    /// </summary>
+    public string Folder { get; set; } = "";
+
     public bool IsS3 => Kind == StorageKind.ImagepixelStorage;
 
     /// <summary>The repository location in the syntax restic expects.</summary>
     public string RepositoryUrl => IsS3
-        ? $"s3:https://{ImagepixelStorage.Endpoint(Region)}/{Bucket}"
+        ? $"s3:https://{ImagepixelStorage.Endpoint(Region)}/{Bucket}" + (Folder.Length > 0 ? "/" + Folder : "")
         : LocalPath;
+
+    /// <summary>The same storage with the same access, but another folder inside it.</summary>
+    public StorageSettings WithFolder(string folder) => new()
+    {
+        Kind = Kind,
+        Bucket = Bucket,
+        Region = Region,
+        AccessKeyId = AccessKeyId,
+        LocalPath = LocalPath,
+        ApiUrl = ApiUrl,
+        Folder = folder,
+    };
+}
+
+/// <summary>What keeps a name from being used as the folder of a backup inside a storage.</summary>
+public enum StorageFolderProblem
+{
+    None,
+
+    /// <summary>A character that is not allowed, or a part of the name that says nothing.</summary>
+    Characters,
+
+    /// <summary>The storage itself uses the name.</summary>
+    Reserved,
+
+    TooLong,
+}
+
+/// <summary>
+/// The folder inside an Imagepixel Storage that a backup is kept in. With a folder each,
+/// several computers can share one storage without their backups getting mixed up.
+/// </summary>
+public static class StorageFolder
+{
+    public const int MaxLength = 100;
+
+    // What lies at the top of a storage already: the files of Imagepixel, and the parts
+    // of a backup that is kept without a folder. A folder of the same name would be
+    // mixed up with them.
+    private static readonly string[] ReservedNames = ["imagepixel", "config", "data", "index", "keys", "locks", "snapshots"];
+
+    /// <summary>
+    /// Brings what was typed into the form it is stored in: parts separated by single
+    /// forward slashes, none at the ends, no spaces around the parts.
+    /// </summary>
+    public static string Normalize(string? value)
+    {
+        var parts = (value ?? "")
+            .Normalize(System.Text.NormalizationForm.FormC)
+            .Split('/', '\\')
+            .Select(part => part.Trim())
+            .Where(part => part.Length > 0);
+
+        return string.Join('/', parts);
+    }
+
+    /// <summary>Says what is wrong with a folder that <see cref="Normalize"/> returned. No folder at all is fine.</summary>
+    public static StorageFolderProblem Check(string folder)
+    {
+        if (folder.Length == 0)
+        {
+            return StorageFolderProblem.None;
+        }
+
+        if (folder.Length > MaxLength)
+        {
+            return StorageFolderProblem.TooLong;
+        }
+
+        var parts = folder.Split('/');
+
+        // Letters and digits of any language, and the few signs that mean nothing in an
+        // address. A part of dots alone would point at the folder itself or the one above.
+        if (parts.Any(part => part.Length == 0 || part.All(c => c == '.') || !part.All(IsAllowed)))
+        {
+            return StorageFolderProblem.Characters;
+        }
+
+        return IsReserved(parts[0]) ? StorageFolderProblem.Reserved : StorageFolderProblem.None;
+    }
+
+    /// <summary>Whether the storage itself uses a name at its top.</summary>
+    public static bool IsReserved(string name) => ReservedNames.Contains(name, StringComparer.OrdinalIgnoreCase);
+
+    private static bool IsAllowed(char c) => char.IsLetterOrDigit(c) || c is ' ' or '-' or '_' or '.';
 }
 
 /// <summary>Everything restic needs to open a repository.</summary>

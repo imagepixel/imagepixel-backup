@@ -60,6 +60,23 @@ public sealed class BackupFolder
 
     /// <summary>How much there was to back up when the backup was paused.</summary>
     public long PausedBytesTotal { get; set; }
+
+    /// <summary>
+    /// The same folder for a backup at another place. What the user set up comes along:
+    /// schedule, exceptions, and a pause. How the backups went does not, because nothing
+    /// has been saved at the new place yet, so the folder is due there at once. It is a
+    /// new object, so that a backup still running against the old place cannot write
+    /// its outcome into it.
+    /// </summary>
+    public BackupFolder ForAnotherPlace() => new()
+    {
+        Path = Path,
+        Schedule = Schedule,
+        DailyAt = DailyAt,
+        Exclusions = Exclusions,
+        ExclusionsDecided = ExclusionsDecided,
+        PausedAt = PausedAt,
+    };
 }
 
 /// <summary>The settings of the application. Secrets are not part of it.</summary>

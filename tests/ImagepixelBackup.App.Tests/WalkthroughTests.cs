@@ -109,6 +109,14 @@ public sealed class WalkthroughTests : IDisposable
             main.LoginItem = LoginItem;
         }
 
+        // what a look into the storage finds, and what it was asked with
+        var lookedInto = new List<(string? Bucket, string? Secret)>();
+        main.FindBackupFolders = (storage, secret) =>
+        {
+            lookedInto.Add((storage?.Bucket, secret));
+            return Task.FromResult<IReadOnlyList<string>>(["", "Notebook"]);
+        };
+
         window.Show();
 
         // --- once, before anything else: the notes on use and liability ---------------
@@ -180,6 +188,31 @@ public sealed class WalkthroughTests : IDisposable
         Assert.Equal("kunde-4711", setup.Bucket);
         Assert.Equal("ABCDEFGHIJKLMNOPQRST", setup.AccessKeyId);
         Assert.True(setup.ShowImagepixelFields);
+
+        // with the code the storage is known: the backups it holds already are offered
+        await setup.Search;
+        Assert.Equal([("kunde-4711", "geheim")], lookedInto);
+        Assert.Equal(["Ohne Ordner (direkt im Speicher)", "Notebook"], setup.FoundBackups.Select(backup => backup.Label));
+        Assert.False(setup.HasStoredAccess);
+
+        // the folder inside the storage is optional, and what cannot be one is said while typing
+        Assert.Equal("", setup.Folder);
+        Assert.False(setup.HasFolderProblem);
+        setup.Folder = "Büro: Notebook";
+        Assert.Contains("nur Buchstaben, Ziffern", setup.FolderProblem);
+        setup.Folder = "imagepixel";
+        Assert.Contains("verwendet der Speicher selbst", setup.FolderProblem);
+        setup.Password = Password;
+        await setup.ConnectCommand.ExecuteAsync(null);
+        Assert.Equal(setup.FolderProblem, setup.ErrorMessage);
+        Assert.False(manager.IsConnected);
+        Capture(window, "03a-einrichtung-ordner-im-speicher-unzulaessig");
+        setup.Password = "";
+
+        setup.ChooseFoundBackupCommand.Execute(setup.FoundBackups[1]);
+        Assert.Equal("Notebook", setup.Folder);
+        Assert.False(setup.HasFolderProblem);
+        Assert.Null(setup.ErrorMessage);
         Capture(window, "03-einrichtung-imagepixel-storage");
 
         // the whole page: what comes from Imagepixel, and the password the customer chooses
@@ -760,13 +793,17 @@ public sealed class WalkthroughTests : IDisposable
         window.Show();
         var dashboard = Assert.IsType<DashboardViewModel>(main.CurrentPage);
 
-        // a click on "Speicher wechseln" only opens the setup
+        // a click on "Ziel ändern" only opens the setup
         dashboard.ChangeStorageCommand.Execute(null);
         var setup = Assert.IsType<SetupViewModel>(main.CurrentPage);
         Assert.True(setup.IsSwitching);
         Assert.Contains("Du bist mit", setup.SwitchNote);
         Assert.Contains("Sicherungen laufen weiter", setup.SwitchNote);
         Assert.Equal([SourceFolder], setup.Sources);
+
+        // a backup on a disk has no access data to use again for Imagepixel Storage
+        Assert.False(setup.HasStoredAccess);
+        Assert.Empty(setup.FoundBackups);
         Capture(window, "14-speicher-wechseln");
 
         // nothing was forgotten and nothing was stopped
@@ -811,6 +848,179 @@ public sealed class WalkthroughTests : IDisposable
 
         // the backup in the previous storage is still there
         Assert.True(File.Exists(Path.Combine(StorageFolder, "config")));
+
+        window.Close();
+        await main.ShutdownAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task Another_folder_of_the_storage_in_use_needs_no_setup_code()
+    {
+        // a computer that backs up to the folder "Notebook" of its Imagepixel Storage
+        new ConfigStore(DataFolder).Save(new AppConfig
+        {
+            Storage = new StorageSettings
+            {
+                Kind = StorageKind.ImagepixelStorage,
+                Bucket = "kunde-4711",
+                AccessKeyId = "ABCDEFGHIJKLMNOPQRST",
+                Folder = "Notebook",
+            },
+            TermsAccepted = Texts.TermsVersion,
+            Folders = { new BackupFolder { Path = SourceFolder, Schedule = ScheduleKind.Manual } },
+        });
+        var secrets = new MemorySecretStore();
+        secrets.Set(SecretNames.RepositoryPassword, Password);
+        secrets.Set(SecretNames.SecretAccessKey, "geheim");
+
+        var manager = new BackupManager(new ConfigStore(DataFolder), secrets, "restic");
+        var main = new MainViewModel(manager, []);
+        main.LoadStorageStatus = () => Task.FromResult<StorageStatus?>(null);
+        var lookedInto = new List<(string? Bucket, string? Secret)>();
+        main.FindBackupFolders = (storage, secret) =>
+        {
+            lookedInto.Add((storage?.Bucket, secret));
+            return Task.FromResult<IReadOnlyList<string>>(["", "Notebook"]);
+        };
+
+        var window = new MainWindow { DataContext = main };
+        window.Show();
+
+        // the overview names the folder next to the storage
+        var dashboard = Assert.IsType<DashboardViewModel>(main.CurrentPage);
+        Assert.Equal("Imagepixel Storage · kunde-4711 · Ordner Notebook", dashboard.StorageName);
+        Capture(window, "14a-uebersicht-mit-ordner-im-speicher");
+
+        dashboard.ChangeStorageCommand.Execute(null);
+        var setup = Assert.IsType<SetupViewModel>(main.CurrentPage);
+        Assert.True(setup.IsSwitching);
+        Assert.True(setup.HasStoredAccess);
+        Assert.Contains("Ordner Notebook", setup.SwitchNote);
+
+        // the folder in use is the starting point, and the storage that is connected is
+        // looked into with the access data the application holds: nothing is passed on
+        Assert.Equal("Notebook", setup.Folder);
+        await setup.Search;
+        Assert.Equal([(null, null)], lookedInto);
+        Assert.Equal(["Ohne Ordner (direkt im Speicher)", "Notebook"], setup.FoundBackups.Select(backup => backup.Label));
+
+        setup.ChooseModeCommand.Execute("Backup");
+        Assert.True(setup.UsesStoredAccess);
+        window.Height = 1500;
+        Capture(window, "14b-ziel-aendern-anderer-ordner");
+        window.Height = 700;
+
+        // without a code the next thing asked for is the password, not the code
+        setup.Folder = "Büro/PC";
+        await setup.ConnectCommand.ExecuteAsync(null);
+        Assert.Contains("mindestens 8 Zeichen", setup.ErrorMessage);
+
+        // a name the storage cannot keep apart is turned down before anything is contacted
+        setup.Password = Password;
+        setup.Folder = "data";
+        await setup.ConnectCommand.ExecuteAsync(null);
+        Assert.Contains("verwendet der Speicher selbst", setup.ErrorMessage);
+
+        // a code that is entered counts, also a broken one: the access data in store does not stand in for it
+        setup.Folder = "Büro/PC";
+        setup.SetupCodeText = "IPB1-kaputt";
+        Assert.False(setup.UsesStoredAccess);
+        await setup.ConnectCommand.ExecuteAsync(null);
+        Assert.Equal(Texts.SetupCodeProblem, setup.ErrorMessage);
+        Assert.Empty(setup.FoundBackups);
+
+        // the code of another storage is looked into with what the code carries
+        setup.SetupCodeText = new SetupCode("kunde-0815", "ZYXWVUTSRQPONMLKJIHG", "anderes-geheimnis", "eu-central-2").Encode();
+        await setup.Search;
+        Assert.Equal(("kunde-0815", "anderes-geheimnis"), lookedInto[^1]);
+
+        // taking the code out again leads back to the storage in use
+        setup.SetupCodeText = "";
+        await setup.Search;
+        Assert.Equal((null, null), lookedInto[^1]);
+        Assert.True(setup.UsesStoredAccess);
+
+        // nothing of all this changed what is connected
+        Assert.Equal("Notebook", manager.Config.Storage!.Folder);
+        Assert.Equal("Notebook", new ConfigStore(DataFolder).Load().Storage!.Folder);
+        setup.BackCommand.Execute(null);
+        Assert.Same(dashboard, main.CurrentPage);
+
+        window.Close();
+        await main.ShutdownAsync();
+    }
+
+    /// <summary>
+    /// The same walk with a real storage behind it: moving to another folder without the
+    /// setup code, and backing up there. Runs only where a bucket for tests is named in
+    /// the environment (IPB_TEST_BUCKET, IPB_TEST_ACCESS_KEY_ID,
+    /// IPB_TEST_SECRET_ACCESS_KEY, IPB_TEST_REGION), and leaves two small backups in it.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task Customer_moves_to_another_folder_of_a_real_storage()
+    {
+        var restic = ResticClient.FindRestic();
+        Assert.SkipWhen(restic is null, "restic has not been built");
+
+        var bucket = Environment.GetEnvironmentVariable("IPB_TEST_BUCKET");
+        var keyId = Environment.GetEnvironmentVariable("IPB_TEST_ACCESS_KEY_ID");
+        var secret = Environment.GetEnvironmentVariable("IPB_TEST_SECRET_ACCESS_KEY");
+        Assert.SkipWhen(
+            string.IsNullOrEmpty(bucket) || string.IsNullOrEmpty(keyId) || string.IsNullOrEmpty(secret),
+            "no storage for tests is named in the environment");
+
+        const string password = "nur-ein-test-passwort";
+        const string notebook = "Test Büro Notebook";
+        const string second = "Test Büro/Zweiter PC";
+        var storage = new StorageSettings
+        {
+            Kind = StorageKind.ImagepixelStorage,
+            Bucket = bucket!,
+            AccessKeyId = keyId!,
+            Region = Environment.GetEnvironmentVariable("IPB_TEST_REGION") is { Length: > 0 } region ? region : ImagepixelStorage.DefaultRegion,
+            Folder = notebook,
+        };
+
+        var manager = new BackupManager(new ConfigStore(DataFolder), new MemorySecretStore(), restic!);
+        manager.AcceptTerms(Texts.TermsVersion);
+        Assert.Equal(RepositoryState.Ready, await manager.ConnectAsync(storage, password, secret, createIfMissing: true));
+        manager.AddFolder(SourceFolder).Schedule = ScheduleKind.Manual;
+        manager.Save();
+
+        var main = new MainViewModel(manager, []);
+        main.LoadStorageStatus = () => Task.FromResult<StorageStatus?>(null);
+        var window = new MainWindow { DataContext = main };
+        window.Show();
+        var dashboard = Assert.IsType<DashboardViewModel>(main.CurrentPage);
+        Assert.EndsWith(" · Ordner " + notebook, dashboard.StorageName);
+
+        // the storage is looked into for real: the folder in use is among what it holds
+        dashboard.ChangeStorageCommand.Execute(null);
+        var setup = Assert.IsType<SetupViewModel>(main.CurrentPage);
+        await setup.Search;
+        Assert.Contains(setup.FoundBackups, backup => backup.Folder == notebook);
+
+        // another folder, no setup code: the password is all that is typed
+        setup.ChooseModeCommand.Execute("Backup");
+        setup.Folder = second;
+        setup.Password = password;
+        setup.PasswordRepeat = password;
+        await setup.ConnectCommand.ExecuteAsync(null);
+        Assert.Null(setup.ErrorMessage);
+
+        var next = Assert.IsType<DashboardViewModel>(main.CurrentPage);
+        Assert.NotSame(dashboard, next);
+        Assert.EndsWith(" · Ordner " + second, next.StorageName);
+        Assert.Equal(second, new ConfigStore(DataFolder).Load().Storage!.Folder);
+
+        // the folder that is backed up came along and is saved there
+        var item = Assert.Single(next.Folders);
+        Assert.Null(item.Folder.LastSuccess);
+        await item.BackupNowCommand.ExecuteAsync(null);
+        await WaitUntilAsync(() => !item.IsRunning);
+        Assert.NotNull(item.Folder.LastSuccess);
+        Assert.Null(item.Folder.LastError);
+        Assert.NotEmpty(await manager.GetSnapshotsAsync());
 
         window.Close();
         await main.ShutdownAsync();

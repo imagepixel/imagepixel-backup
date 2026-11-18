@@ -23,6 +23,9 @@ public enum SetupMode
     Restore,
 }
 
+/// <summary>A backup the storage already holds, offered for one click instead of typing its folder.</summary>
+public sealed record FoundBackup(string Folder, string Label);
+
 /// <summary>
 /// First start. The customer chooses between backing up and restoring. Backing up asks
 /// what to back up, where to, and for a new password. Restoring asks where the backup
@@ -37,12 +40,15 @@ public partial class SetupViewModel : ViewModelBase
     private string _region = ImagepixelStorage.DefaultRegion;
     private string? _apiUrl;
     private string? _apiToken;
+    private int _search;
 
     public SetupViewModel(BackupManager manager, MainViewModel main, bool switching = false)
     {
         _manager = manager;
         _main = main;
         IsSwitching = switching && manager.IsConnected;
+        HasStoredAccess = IsSwitching && manager.Config.Storage is { IsS3: true };
+        FoundBackups.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasFoundBackups));
         Sources.CollectionChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(HasSources));
@@ -60,6 +66,13 @@ public partial class SetupViewModel : ViewModelBase
                 Sources.Add(folder.Path);
             }
         }
+
+        // moving inside the storage in use: its folder is the starting point
+        if (HasStoredAccess)
+        {
+            Folder = manager.Config.Storage!.Folder;
+            Search = LookForBackupsAsync();
+        }
     }
 
     /// <summary>
@@ -71,6 +84,15 @@ public partial class SetupViewModel : ViewModelBase
 
     public string SwitchNote => _manager.Config.Storage is { } storage ? Texts.SwitchNote(Texts.StorageName(storage)) : "";
 
+    /// <summary>
+    /// Whether the application holds the access data of an Imagepixel Storage already.
+    /// Then another folder inside that storage can be chosen without the setup code.
+    /// </summary>
+    public bool HasStoredAccess { get; }
+
+    /// <summary>Whether the access data the application holds is what the connection is made with.</summary>
+    public bool UsesStoredAccess => HasStoredAccess && IsImagepixel && string.IsNullOrWhiteSpace(SetupCodeText);
+
     [RelayCommand]
     private void Back() => _main.ShowDashboard();
 
@@ -78,7 +100,8 @@ public partial class SetupViewModel : ViewModelBase
     [NotifyPropertyChangedFor(
         nameof(HasMode), nameof(IsBackup), nameof(IsRestore), nameof(Subtitle),
         nameof(CanChooseDestination), nameof(ShowImagepixelFields), nameof(ShowLocalFields),
-        nameof(DestinationHeading), nameof(PasswordHeading), nameof(PasswordLabel), nameof(ConnectText))]
+        nameof(DestinationHeading), nameof(PasswordHeading), nameof(PasswordLabel), nameof(ConnectText),
+        nameof(FolderHint), nameof(FoundBackupsNote))]
     public partial SetupMode Mode { get; set; }
 
     public bool HasMode => Mode != SetupMode.None;
@@ -163,6 +186,31 @@ public partial class SetupViewModel : ViewModelBase
     [ObservableProperty]
     public partial string SecretAccessKey { get; set; } = "";
 
+    /// <summary>
+    /// The folder inside the Imagepixel Storage that holds the backup, as the customer
+    /// typed it. Empty for a backup that lies directly in the storage.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FolderProblem), nameof(HasFolderProblem))]
+    public partial string Folder { get; set; } = "";
+
+    /// <summary>What is wrong with the folder, or null. Said while typing, not only on the last click.</summary>
+    public string? FolderProblem => Texts.FolderProblem(StorageFolder.Check(StorageFolder.Normalize(Folder)));
+
+    public bool HasFolderProblem => FolderProblem is not null;
+
+    public string FolderHint => IsRestore ? Texts.FolderHintRestore : Texts.FolderHintBackup;
+
+    /// <summary>The backups found in the storage. Empty until the storage is known and has been looked into.</summary>
+    public ObservableCollection<FoundBackup> FoundBackups { get; } = [];
+
+    public bool HasFoundBackups => FoundBackups.Count > 0;
+
+    public string FoundBackupsNote => IsRestore ? Texts.FoundBackupsRestore : Texts.FoundBackupsBackup;
+
+    /// <summary>The look into the storage that is under way, for tests to wait for.</summary>
+    public Task Search { get; private set; } = Task.CompletedTask;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DestinationHint), nameof(HasDestinationHint))]
     public partial string LocalPath { get; set; } = "";
@@ -231,7 +279,69 @@ public partial class SetupViewModel : ViewModelBase
         }
 
         OnPropertyChanged(nameof(HasCodeProblem));
+        Search = LookForBackupsAsync();
     }
+
+    /// <summary>
+    /// Looks into the storage for the backups it holds, so that the customer can pick
+    /// one instead of remembering how its folder was spelled. A help only: if the
+    /// storage cannot be read, nothing is offered and the folder can still be typed.
+    /// </summary>
+    private async Task LookForBackupsAsync()
+    {
+        var search = ++_search;
+        FoundBackups.Clear();
+
+        IReadOnlyList<string> found;
+        try
+        {
+            if (CodeAccepted)
+            {
+                found = await _main.FindBackupFolders(StorageFromFields(""), SecretAccessKey.Trim());
+            }
+            else if (HasStoredAccess && string.IsNullOrWhiteSpace(SetupCodeText))
+            {
+                found = await _main.FindBackupFolders(null, null);
+            }
+            else
+            {
+                return;
+            }
+        }
+        catch (Exception)
+        {
+            return;
+        }
+
+        // another code was entered meanwhile: its own look fills the list
+        if (search != _search)
+        {
+            return;
+        }
+
+        foreach (var folder in found)
+        {
+            FoundBackups.Add(new FoundBackup(folder, folder.Length == 0 ? Texts.NoFolder : folder));
+        }
+    }
+
+    [RelayCommand]
+    private void ChooseFoundBackup(FoundBackup backup)
+    {
+        Folder = backup.Folder;
+        ErrorMessage = null;
+    }
+
+    private StorageSettings StorageFromFields(string folder) => new()
+    {
+        Kind = Kind,
+        Bucket = Bucket.Trim(),
+        Region = _region,
+        AccessKeyId = AccessKeyId.Trim(),
+        LocalPath = LocalPath.Trim(),
+        ApiUrl = IsImagepixel ? _apiUrl ?? "" : "",
+        Folder = folder,
+    };
 
     [RelayCommand]
     private void ChooseMode(string mode)
@@ -299,29 +409,30 @@ public partial class SetupViewModel : ViewModelBase
             return;
         }
 
-        var storage = new StorageSettings
-        {
-            Kind = Kind,
-            Bucket = Bucket.Trim(),
-            Region = _region,
-            AccessKeyId = AccessKeyId.Trim(),
-            LocalPath = LocalPath.Trim(),
-            ApiUrl = IsImagepixel ? _apiUrl ?? "" : "",
-        };
+        var folder = IsImagepixel ? StorageFolder.Normalize(Folder) : "";
+        var storage = StorageFromFields(folder);
         var secret = IsImagepixel ? SecretAccessKey.Trim() : null;
         var apiToken = IsImagepixel ? _apiToken : null;
+
+        // another folder of the storage in use needs no setup code: the access data is there
+        var stored = UsesStoredAccess;
+        Task<RepositoryState> Connect(bool create) => stored
+            ? _manager.ConnectToFolderAsync(folder, Password, create)
+            : _manager.ConnectAsync(storage, Password, secret, createIfMissing: create, apiToken: apiToken);
 
         IsBusy = true;
         BusyText = IsRestore ? "Backup wird geöffnet …" : "Verbindung wird geprüft …";
         try
         {
-            var state = await _manager.ConnectAsync(storage, Password, secret, createIfMissing: false, apiToken: apiToken);
+            var state = await Connect(false);
             if (state == RepositoryState.NotFound)
             {
                 // Restoring never creates anything: an empty place means the data is elsewhere.
                 if (IsRestore)
                 {
-                    ErrorMessage = "An diesem Ort wurde kein Backup gefunden. Bitte prüfe die Angaben. Wenn du noch kein Backup hast, wähle oben „Daten sichern“.";
+                    ErrorMessage = IsImagepixel && HasFoundBackups
+                        ? Texts.NoBackupHereButElsewhere
+                        : "An diesem Ort wurde kein Backup gefunden. Bitte prüfe die Angaben. Wenn du noch kein Backup hast, wähle oben „Daten sichern“.";
                     return;
                 }
 
@@ -334,7 +445,7 @@ public partial class SetupViewModel : ViewModelBase
                 }
 
                 BusyText = "Backup wird eingerichtet …";
-                state = await _manager.ConnectAsync(storage, Password, secret, createIfMissing: true, apiToken: apiToken);
+                state = await Connect(true);
             }
 
             if (state == RepositoryState.WrongPassword)
@@ -403,9 +514,14 @@ public partial class SetupViewModel : ViewModelBase
 
         if (IsImagepixel)
         {
-            if (!CodeAccepted)
+            if (!CodeAccepted && !UsesStoredAccess)
             {
                 return HasCodeProblem ? Texts.SetupCodeProblem : Texts.SetupCodeMissing;
+            }
+
+            if (FolderProblem is { } problem)
+            {
+                return problem;
             }
         }
         else

@@ -61,7 +61,8 @@ public sealed class GuidePictures : IDisposable
         secrets ?? new MemorySecretStore(),
         restic,
         null,
-        new StorageStatusService(new HttpClient(new NoNetwork())));
+        new StorageStatusService(new HttpClient(new NoNetwork())),
+        new BackupFinder(new HttpClient(new NoNetwork())));
 
     [AvaloniaFact]
     public void Setting_up_a_backup_and_restoring()

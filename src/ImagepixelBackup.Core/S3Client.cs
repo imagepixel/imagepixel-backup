@@ -58,6 +58,44 @@ public sealed class S3Client(
         string prefix = "",
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        await foreach (var page in ListPagesAsync(prefix, null, cancellationToken))
+        {
+            var ns = page.Name.Namespace;
+            foreach (var item in page.Elements(ns + "Contents"))
+            {
+                yield return (
+                    item.Element(ns + "Key")!.Value,
+                    long.Parse(item.Element(ns + "Size")!.Value, CultureInfo.InvariantCulture));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Lists the folders at the top of the bucket: what the keys there start with up to
+    /// their first slash. The names come without the slash.
+    /// </summary>
+    public async IAsyncEnumerable<string> ListFoldersAsync(
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await foreach (var page in ListPagesAsync("", "/", cancellationToken))
+        {
+            var ns = page.Name.Namespace;
+            foreach (var item in page.Elements(ns + "CommonPrefixes"))
+            {
+                if (item.Element(ns + "Prefix")?.Value.TrimEnd('/') is { Length: > 0 } name)
+                {
+                    yield return name;
+                }
+            }
+        }
+    }
+
+    // A listing comes in pages of at most a thousand entries; each page names the next one.
+    private async IAsyncEnumerable<XElement> ListPagesAsync(
+        string prefix,
+        string? delimiter,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
         string? continuation = null;
         do
         {
@@ -65,6 +103,11 @@ public sealed class S3Client(
             if (prefix.Length > 0)
             {
                 query["prefix"] = prefix;
+            }
+
+            if (delimiter is not null)
+            {
+                query["delimiter"] = delimiter;
             }
 
             if (continuation is not null)
@@ -76,17 +119,10 @@ public sealed class S3Client(
             using var response = await SendAsync(HttpMethod.Get, "/" + bucket, queryString, null, null, cancellationToken);
             await EnsureSuccessAsync(response, cancellationToken);
 
-            var document = XDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
-            var root = document.Root!;
+            var root = XDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken)).Root!;
+            yield return root;
+
             var ns = root.Name.Namespace;
-
-            foreach (var item in root.Elements(ns + "Contents"))
-            {
-                yield return (
-                    item.Element(ns + "Key")!.Value,
-                    long.Parse(item.Element(ns + "Size")!.Value, CultureInfo.InvariantCulture));
-            }
-
             continuation = string.Equals(root.Element(ns + "IsTruncated")?.Value, "true", StringComparison.OrdinalIgnoreCase)
                 ? root.Element(ns + "NextContinuationToken")?.Value
                 : null;
