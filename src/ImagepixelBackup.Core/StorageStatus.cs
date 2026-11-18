@@ -130,15 +130,25 @@ public sealed class StorageStatusService(HttpClient http)
 
         try
         {
-            var bytes = await S3Client.For(http, storage, secretAccessKey)
-                .GetObjectAsync(StorageStatusDocument.ObjectKey, cancellationToken);
+            var client = S3Client.For(http, storage, secretAccessKey);
+            var bytes = await client.GetObjectAsync(StorageStatusDocument.ObjectKey, cancellationToken);
             if (bytes is null || StorageStatusDocument.Parse(bytes) is not { } fromFile)
             {
                 return StorageStatusResult.None;
             }
 
+            // The file is only as fresh as whoever wrote it last. How much lies in the
+            // bucket the application can see for itself, so it does: a backup that has
+            // just run shows at once. The file's figure stays if it is the larger one,
+            // because it may count storage this computer cannot see.
+            var status = fromFile.ToStatus(StorageStatusSource.StatusFile);
+            if (await MeasureAsync(client, cancellationToken) is { } measured && measured > status.UsedBytes)
+            {
+                status = status with { UsedBytes = measured, MeasuredAt = DateTimeOffset.UtcNow };
+            }
+
             return new StorageStatusResult(
-                fromFile.ToStatus(StorageStatusSource.StatusFile),
+                status,
                 IsUsableApiUrl(fromFile.ApiUrl) ? fromFile.ApiUrl : null,
                 fromFile.ApiToken);
         }
@@ -146,6 +156,32 @@ public sealed class StorageStatusService(HttpClient http)
         {
             cancellationToken.ThrowIfCancellationRequested();
             return StorageStatusResult.None;
+        }
+    }
+
+    /// <summary>
+    /// Adds up what lies in the bucket, without what Imagepixel itself keeps there.
+    /// Returns null if the bucket cannot be listed.
+    /// </summary>
+    private static async Task<long?> MeasureAsync(S3Client client, CancellationToken cancellationToken)
+    {
+        try
+        {
+            long used = 0;
+            await foreach (var (key, size) in client.ListObjectsAsync(cancellationToken: cancellationToken))
+            {
+                if (!key.StartsWith("imagepixel/", StringComparison.Ordinal))
+                {
+                    used += size;
+                }
+            }
+
+            return used;
+        }
+        catch (Exception e) when (e is HttpRequestException or S3Exception or TaskCanceledException or System.Xml.XmlException)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return null;
         }
     }
 

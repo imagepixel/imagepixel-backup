@@ -54,6 +54,13 @@ The file is the object `imagepixel/storage-status.json` in the bucket of the cus
 The application reads it with the access key it backs up with. Whoever writes the
 figures for the service also writes the file, so that both agree.
 
+The file is only as fresh as whoever wrote it last. After reading it, the application
+therefore lists the bucket and adds up what lies in it, without the objects below
+`imagepixel/`. If that is more than the file says, the application shows its own
+measurement with the time it was made; otherwise the figure of the file stays, because
+it may count storage this computer cannot see. The booked size always comes from the
+file. The figures of the service are taken as they are.
+
 The access key of a customer should be allowed to read the file but not to change it.
 A statement like this in the policy of the customer does that:
 

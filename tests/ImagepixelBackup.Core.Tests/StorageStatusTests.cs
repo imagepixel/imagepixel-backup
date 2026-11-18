@@ -33,6 +33,9 @@ public sealed class StorageStatusTests
 
     private static bool IsApi(HttpRequestMessage request) => request.RequestUri!.Host == "portal.example.test";
 
+    // After the status file the application lists the bucket to see for itself how much lies in it.
+    private static bool IsListing(HttpRequestMessage request) => request.RequestUri!.Query.Contains("list-type");
+
     private static StorageStatusDocument Document(long usedGb, string? apiUrl = null, string? apiToken = null) => new()
     {
         BookedBytes = 100 * Gb,
@@ -82,7 +85,7 @@ public sealed class StorageStatusTests
         Assert.False(result.Status.IsFull);
 
         // the file is fetched from the bucket of the customer with a signed request
-        var file = network.Requests.Last();
+        var file = network.Requests.Last(request => !IsListing(request));
         Assert.Equal("https://s3.eu-central-2.wasabisys.com/kunde-4711/imagepixel/storage-status.json", file.RequestUri!.ToString());
         Assert.StartsWith("AWS4-HMAC-SHA256 Credential=ACCESSKEY/", file.Headers.GetValues("Authorization").Single());
         Assert.Contains("/eu-central-2/s3/aws4_request", file.Headers.GetValues("Authorization").Single());
@@ -96,7 +99,8 @@ public sealed class StorageStatusTests
 
         var result = await new StorageStatusService(new HttpClient(network)).GetAsync(storage, "secret", null);
 
-        Assert.Single(network.Requests);
+        Assert.Single(network.Requests, request => !IsListing(request));
+        Assert.DoesNotContain(network.Requests, IsApi);
         Assert.Equal(StorageStatusSource.StatusFile, result.Status!.Source);
         Assert.True(result.Status.IsFull);
     }
@@ -143,6 +147,11 @@ public sealed class StorageStatusTests
             var asked = new List<string>();
             var network = new FakeNetwork(request =>
             {
+                if (IsListing(request))
+                {
+                    return new HttpResponseMessage(HttpStatusCode.Forbidden);
+                }
+
                 asked.Add(IsApi(request) ? "service" : "file");
                 return IsApi(request) ? Json(Document(70)) : Json(Document(60, ApiUrl, "neues-token"));
             });
@@ -193,6 +202,49 @@ public sealed class StorageStatusTests
             + "SignedHeaders=host;range;x-amz-content-sha256;x-amz-date,"
             + "Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41",
             authorization);
+    }
+
+    [Theory]
+    [InlineData(0, 16777371L)] // the file was written before the first backup: what lies in the bucket counts
+    [InlineData(62, 62L * 1024 * 1024 * 1024)] // the file counts more than this computer can see: its figure stays
+    public async Task What_lies_in_the_bucket_is_measured_when_the_file_is_behind(long usedGbInFile, long expectedBytes)
+    {
+        const string listing = """
+            <ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+              <IsTruncated>false</IsTruncated>
+              <Contents><Key>config</Key><Size>155</Size></Contents>
+              <Contents><Key>data/00/abc</Key><Size>16777216</Size></Contents>
+              <Contents><Key>imagepixel/storage-status.json</Key><Size>120</Size></Contents>
+            </ListBucketResult>
+            """;
+        var network = new FakeNetwork(request => request.RequestUri!.Query.Contains("list-type")
+            ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(listing, Encoding.UTF8, "application/xml") }
+            : Json(Document(usedGbInFile)));
+        var storage = new StorageSettings { Kind = StorageKind.ImagepixelStorage, Bucket = "kunde-4711", AccessKeyId = "ACCESSKEY" };
+
+        var result = await new StorageStatusService(new HttpClient(network)).GetAsync(storage, "secret", null);
+
+        Assert.Equal(StorageStatusSource.StatusFile, result.Status!.Source);
+        Assert.Equal(100 * Gb, result.Status.BookedBytes);
+        Assert.Equal(expectedBytes, result.Status.UsedBytes);
+
+        // a fresh measurement carries the time it was made, the file's figure the time of the file
+        var fresh = usedGbInFile == 0;
+        Assert.Equal(fresh, result.Status.MeasuredAt > DateTimeOffset.UtcNow.AddMinutes(-1));
+    }
+
+    [Fact]
+    public async Task The_figures_of_the_file_stay_when_the_bucket_cannot_be_listed()
+    {
+        var network = new FakeNetwork(request => request.RequestUri!.Query.Contains("list-type")
+            ? new HttpResponseMessage(HttpStatusCode.Forbidden)
+            : Json(Document(7)));
+        var storage = new StorageSettings { Kind = StorageKind.ImagepixelStorage, Bucket = "kunde-4711", AccessKeyId = "ACCESSKEY" };
+
+        var result = await new StorageStatusService(new HttpClient(network)).GetAsync(storage, "secret", null);
+
+        Assert.Equal(7 * Gb, result.Status!.UsedBytes);
+        Assert.Equal(new DateTimeOffset(2026, 11, 14, 6, 0, 0, TimeSpan.Zero), result.Status.MeasuredAt);
     }
 
     [Fact]
