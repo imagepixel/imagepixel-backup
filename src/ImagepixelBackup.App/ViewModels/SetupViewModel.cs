@@ -38,10 +38,11 @@ public partial class SetupViewModel : ViewModelBase
     private string? _apiUrl;
     private string? _apiToken;
 
-    public SetupViewModel(BackupManager manager, MainViewModel main)
+    public SetupViewModel(BackupManager manager, MainViewModel main, bool switching = false)
     {
         _manager = manager;
         _main = main;
+        IsSwitching = switching && manager.IsConnected;
         Sources.CollectionChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(HasSources));
@@ -50,7 +51,28 @@ public partial class SetupViewModel : ViewModelBase
             OnPropertyChanged(nameof(ShowImagepixelFields));
             OnPropertyChanged(nameof(ShowLocalFields));
         };
+
+        // moving to another storage: the folders that are backed up come along
+        if (IsSwitching)
+        {
+            foreach (var folder in manager.Config.Folders)
+            {
+                Sources.Add(folder.Path);
+            }
+        }
     }
+
+    /// <summary>
+    /// Whether the customer came here from the overview to move to another storage.
+    /// The storage they have stays connected until another one is set up here, and
+    /// they can go back without changing anything.
+    /// </summary>
+    public bool IsSwitching { get; }
+
+    public string SwitchNote => _manager.Config.Storage is { } storage ? Texts.SwitchNote(Texts.StorageName(storage)) : "";
+
+    [RelayCommand]
+    private void Back() => _main.ShowDashboard();
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(
@@ -124,6 +146,14 @@ public partial class SetupViewModel : ViewModelBase
     [ObservableProperty]
     public partial string SetupCodeText { get; set; } = "";
 
+    /// <summary>Whether what was entered is a setup code of Imagepixel. The storage cannot be reached without one.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCodeProblem))]
+    public partial bool CodeAccepted { get; set; }
+
+    /// <summary>Something was entered, but it is not a setup code.</summary>
+    public bool HasCodeProblem => !CodeAccepted && !string.IsNullOrWhiteSpace(SetupCodeText);
+
     [ObservableProperty]
     public partial string Bucket { get; set; } = "";
 
@@ -175,7 +205,7 @@ public partial class SetupViewModel : ViewModelBase
         OnPropertyChanged(nameof(HasDestinationHint));
     }
 
-    // A pasted setup code fills in the fields the customer would otherwise type.
+    // The setup code is all the customer enters for Imagepixel Storage: it carries the bucket and both keys.
     partial void OnSetupCodeTextChanged(string value)
     {
         if (SetupCode.TryDecode(value, out var code))
@@ -186,8 +216,21 @@ public partial class SetupViewModel : ViewModelBase
             _region = code.Region;
             _apiUrl = code.ApiUrl;
             _apiToken = code.ApiToken;
+            CodeAccepted = true;
             ErrorMessage = null;
         }
+        else
+        {
+            Bucket = "";
+            AccessKeyId = "";
+            SecretAccessKey = "";
+            _region = ImagepixelStorage.DefaultRegion;
+            _apiUrl = null;
+            _apiToken = null;
+            CodeAccepted = false;
+        }
+
+        OnPropertyChanged(nameof(HasCodeProblem));
     }
 
     [RelayCommand]
@@ -302,6 +345,12 @@ public partial class SetupViewModel : ViewModelBase
                 return;
             }
 
+            // another storage is connected now: what ran for the previous one ends here
+            if (IsSwitching)
+            {
+                await _main.RestartDashboardAsync();
+            }
+
             if (IsRestore)
             {
                 // straight to the saved states, which is what the customer came for
@@ -354,9 +403,9 @@ public partial class SetupViewModel : ViewModelBase
 
         if (IsImagepixel)
         {
-            if (string.IsNullOrWhiteSpace(Bucket) || string.IsNullOrWhiteSpace(AccessKeyId) || string.IsNullOrWhiteSpace(SecretAccessKey))
+            if (!CodeAccepted)
             {
-                return "Bitte trage Bucket-Name, Zugangsschlüssel und geheimen Schlüssel ein.";
+                return HasCodeProblem ? Texts.SetupCodeProblem : Texts.SetupCodeMissing;
             }
         }
         else

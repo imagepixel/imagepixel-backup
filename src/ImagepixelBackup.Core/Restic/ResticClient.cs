@@ -82,11 +82,13 @@ public sealed class ResticClient(string resticPath, RepositoryAccess access)
     /// Called with the full path of every file restic has finished with, whether it
     /// was read or found unchanged. Asking for this makes restic report every file.
     /// </param>
+    /// <param name="exclusions">Arguments that tell restic what to leave out, if anything.</param>
     public async Task<BackupSummary> BackupAsync(
         string folder,
         IProgress<BackupProgress>? progress = null,
         CancellationToken cancellationToken = default,
-        Action<string>? onFileSaved = null)
+        Action<string>? onFileSaved = null,
+        IReadOnlyList<string>? exclusions = null)
     {
         var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder));
         if (!Directory.Exists(full))
@@ -143,9 +145,14 @@ public sealed class ResticClient(string resticPath, RepositoryAccess access)
             }
         }
 
-        string[] arguments = onFileSaved is null
-            ? ["backup", "--json", target]
-            : ["backup", "--json", "--verbose=2", target];
+        string[] arguments =
+        [
+            "backup",
+            "--json",
+            .. onFileSaved is null ? Array.Empty<string>() : ["--verbose=2"],
+            .. exclusions ?? [],
+            target,
+        ];
         var result = await RunAsync(arguments, workingDirectory, OnLine, cancellationToken, OnLine);
         if (result.ExitCode is not (0 or ExitIncompleteBackup) || summary is null)
         {

@@ -127,6 +127,13 @@ public static class FolderRules
         Path.TrimEndingDirectorySeparator(Path.GetFullPath(path)) + Path.DirectorySeparatorChar;
 }
 
+/// <summary>The backup cannot be opened under a drive letter because something else uses that letter.</summary>
+public sealed class DriveLetterInUseException(string letter)
+    : InvalidOperationException($"The drive letter {letter} is in use.")
+{
+    public string Letter { get; } = letter;
+}
+
 /// <summary>A folder cannot be backed up because the backup is stored inside or around it.</summary>
 public sealed class FolderOverlapException(string folder, string storage)
     : InvalidOperationException($"The folder {folder} and the storage {storage} lie inside each other.")

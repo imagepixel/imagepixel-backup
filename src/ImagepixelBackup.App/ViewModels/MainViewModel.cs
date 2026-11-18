@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using ImagepixelBackup.Core;
@@ -117,6 +118,58 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    /// <summary>Hides the window while the application goes on. Set by the application, which owns the window.</summary>
+    public Action HideWindow { get; set; } = () => { };
+
+    /// <summary>Ends the application. Set by the application.</summary>
+    public Func<Task> Quit { get; set; } = () => Task.CompletedTask;
+
+    /// <summary>Whether a backup is running at this moment.</summary>
+    public bool IsBackupRunning => _dashboard?.Folders.Any(folder => folder.IsRunning) ?? false;
+
+    /// <summary>
+    /// Called when the customer closes the window. Returns true if the window may be
+    /// hidden without a word. While a backup runs, and the first time ever, a page
+    /// explains instead that the application and its backups go on in the background.
+    /// </summary>
+    public bool MayCloseWindowSilently()
+    {
+        if (CurrentPage is LeaveViewModel)
+        {
+            return false;
+        }
+
+        var running = IsBackupRunning;
+        if (!running && _manager.Config.BackgroundExplained)
+        {
+            return true;
+        }
+
+        _manager.MarkBackgroundExplained();
+        CurrentPage = new LeaveViewModel(this, CurrentPage, quitting: false, backupRunning: running);
+        return false;
+    }
+
+    /// <summary>
+    /// Called when the customer asks to quit. Returns true if the application may end
+    /// at once. While a backup runs, a page asks first, because quitting stops it.
+    /// </summary>
+    public bool MayQuitSilently()
+    {
+        if (!IsBackupRunning)
+        {
+            return true;
+        }
+
+        if (CurrentPage is not LeaveViewModel { IsQuitting: true })
+        {
+            var previous = CurrentPage is LeaveViewModel ? Dashboard : CurrentPage;
+            CurrentPage = new LeaveViewModel(this, previous, quitting: true, backupRunning: true);
+        }
+
+        return false;
+    }
+
     public DashboardViewModel Dashboard => _dashboard ??= new DashboardViewModel(_manager, this);
 
     /// <summary>Whether the overview exists, and with it the schedule that runs the backups.</summary>
@@ -134,17 +187,48 @@ public partial class MainViewModel : ViewModelBase
 
     public void ShowRestore() => CurrentPage = new RestoreViewModel(_manager, this);
 
+    public void ShowExclusions(FolderItemViewModel folder) => CurrentPage = new ExclusionsViewModel(this, _manager, folder);
+
+    /// <summary>Shows what the look through a folder suggests leaving out, for the customer to answer.</summary>
+    public void ShowSuggestion(FolderItemViewModel folder)
+    {
+        if (folder.Suggestion is { } scan)
+        {
+            CurrentPage = new ExclusionSuggestionViewModel(this, folder, scan);
+        }
+    }
+
+    /// <summary>
+    /// The same, but only if the customer is looking at the overview: a suggestion that
+    /// comes up by itself does not push another page away. The folder keeps offering it.
+    /// </summary>
+    public void OfferSuggestion(FolderItemViewModel folder)
+    {
+        if (ReferenceEquals(CurrentPage, _dashboard))
+        {
+            ShowSuggestion(folder);
+        }
+    }
+
     public void ShowAbout() => CurrentPage = new AboutViewModel(this, CurrentPage);
 
-    public async Task ShowSetupAsync()
+    /// <summary>
+    /// Shows the setup for moving to another storage. Nothing is forgotten or stopped
+    /// by this: the overview keeps running behind it, and the customer can go back.
+    /// </summary>
+    public void ShowStorageChange() => CurrentPage = new SetupViewModel(_manager, this, switching: true);
+
+    /// <summary>
+    /// Called once another storage has been connected: what ran for the previous one
+    /// is stopped, and the overview starts anew for the new one.
+    /// </summary>
+    public async Task RestartDashboardAsync()
     {
         if (_dashboard is not null)
         {
             await _dashboard.ShutdownAsync();
             _dashboard = null;
         }
-
-        CurrentPage = new SetupViewModel(_manager, this);
     }
 
     /// <summary>Stops everything that runs in the background before the application exits.</summary>

@@ -44,6 +44,7 @@ public partial class DashboardViewModel : ViewModelBase
         _scheduler = new DispatcherTimer { Interval = SchedulerInterval };
         _scheduler.Tick += async (_, _) =>
         {
+            RefreshDriveLetters();
             await RunDueBackupsAsync();
             if (DateTimeOffset.Now - _storageStatusLoaded >= StorageStatusInterval)
             {
@@ -52,6 +53,7 @@ public partial class DashboardViewModel : ViewModelBase
         };
         _scheduler.Start();
 
+        RefreshDriveLetters();
         _ = RefreshStorageStatusAsync();
     }
 
@@ -150,7 +152,72 @@ public partial class DashboardViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(CanMount))]
     public partial bool IsMounting { get; set; }
 
-    public bool CanMount => !IsMounting;
+    public bool CanMount => !IsMounting && (!OffersDriveLetter || SelectedDriveLetter is not null);
+
+    /// <summary>Windows opens the backup under a drive letter, which the customer may choose.</summary>
+    public bool OffersDriveLetter => OperatingSystem.IsWindows() && IsMountSupported;
+
+    /// <summary>The drive letters that are free at the moment, in the order of the alphabet.</summary>
+    public ObservableCollection<string> DriveLetters { get; } = [];
+
+    /// <summary>The letter the backup will be opened under: a suggestion until the customer picks another one.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanMount), nameof(HasNoDriveLetter))]
+    public partial string? SelectedDriveLetter { get; set; }
+
+    public bool HasNoDriveLetter => OffersDriveLetter && SelectedDriveLetter is null;
+
+    /// <summary>Finds the free drive letters. Replaced in tests.</summary>
+    public Func<IReadOnlyList<string>> FindFreeDriveLetters { get; set; } = MountSession.FreeDriveLetters;
+
+    private bool _refreshingDriveLetters;
+
+    /// <summary>
+    /// Brings the list of free drive letters up to date. The letter the customer chose
+    /// stays selected while it is free; if something else took it, another one is
+    /// suggested for now and theirs comes back once it is free again.
+    /// </summary>
+    public void RefreshDriveLetters()
+    {
+        if (!OffersDriveLetter || IsMounted || IsMounting)
+        {
+            return;
+        }
+
+        var free = FindFreeDriveLetters();
+        var suggestion = MountSession.SuggestDriveLetter(free, _manager.Config.DriveLetter);
+        var offered = free.Order(StringComparer.OrdinalIgnoreCase).ToList();
+        if (suggestion == SelectedDriveLetter && offered.SequenceEqual(DriveLetters))
+        {
+            return;
+        }
+
+        _refreshingDriveLetters = true;
+        try
+        {
+            DriveLetters.Clear();
+            foreach (var letter in offered)
+            {
+                DriveLetters.Add(letter);
+            }
+
+            SelectedDriveLetter = suggestion;
+        }
+        finally
+        {
+            _refreshingDriveLetters = false;
+        }
+    }
+
+    // What the customer picks is remembered; what is only suggested is not.
+    partial void OnSelectedDriveLetterChanged(string? value)
+    {
+        if (!_refreshingDriveLetters && value is not null && value != _manager.Config.DriveLetter)
+        {
+            _manager.Config.DriveLetter = value;
+            _manager.Save();
+        }
+    }
 
     [RelayCommand]
     private async Task AddFolderAsync()
@@ -247,11 +314,13 @@ public partial class DashboardViewModel : ViewModelBase
             return;
         }
 
+        // the letter the customer sees is the one that is used
+        var letter = OffersDriveLetter ? SelectedDriveLetter : null;
         IsMounting = true;
         StatusLine = "Laufwerk wird geöffnet …";
         try
         {
-            _mount = await Task.Run(() => _manager.MountAsync(Texts.ProductName));
+            _mount = await Task.Run(() => _manager.MountAsync(Texts.ProductName, driveLetter: letter));
             _mount.Exited += (_, _) => Dispatcher.UIThread.Post(OnMountEnded);
             IsMounted = true;
             MountText = Texts.DriveOpen(_mount.Mountpoint);
@@ -265,6 +334,7 @@ public partial class DashboardViewModel : ViewModelBase
         finally
         {
             IsMounting = false;
+            RefreshDriveLetters();
         }
     }
 
@@ -299,6 +369,7 @@ public partial class DashboardViewModel : ViewModelBase
         IsMounted = false;
         MountText = "";
         StatusLine = "Das Laufwerk wurde getrennt.";
+        RefreshDriveLetters();
     }
 
     [RelayCommand]
@@ -307,13 +378,17 @@ public partial class DashboardViewModel : ViewModelBase
     [RelayCommand]
     private void ShowAbout() => _main.ShowAbout();
 
+    /// <summary>Opens the page where the customer says what the backup of a folder leaves out.</summary>
+    public void ShowExclusions(FolderItemViewModel folder) => _main.ShowExclusions(folder);
+
+    public void ShowSuggestion(FolderItemViewModel folder) => _main.ShowSuggestion(folder);
+
+    public void OfferSuggestion(FolderItemViewModel folder) => _main.OfferSuggestion(folder);
+
+    // Only opens the setup. The storage, its password and the running backups stay as
+    // they are until the customer has connected another storage there.
     [RelayCommand]
-    private async Task ChangeStorageAsync()
-    {
-        await ShutdownAsync();
-        _manager.Disconnect();
-        await _main.ShowSetupAsync();
-    }
+    private void ChangeStorage() => _main.ShowStorageChange();
 
     /// <summary>Stops the schedule, running backups and the mounted drive.</summary>
     public async Task ShutdownAsync()

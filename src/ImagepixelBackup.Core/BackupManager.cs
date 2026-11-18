@@ -157,6 +157,16 @@ public sealed class BackupManager(
         }
     }
 
+    /// <summary>Remembers that the user was told the application keeps running when its window is closed.</summary>
+    public void MarkBackgroundExplained()
+    {
+        if (!Config.BackgroundExplained)
+        {
+            Config.BackgroundExplained = true;
+            Save();
+        }
+    }
+
     /// <summary>Whether the user confirmed this version of the notes on use and liability.</summary>
     public bool HasAcceptedTerms(string version) => Config.TermsAccepted == version;
 
@@ -188,7 +198,8 @@ public sealed class BackupManager(
             try
             {
                 var summary = await CreateClient().BackupAsync(
-                    folder.Path, progress, cancellationToken, guard is null ? null : guard.FileSaved);
+                    folder.Path, progress, cancellationToken, guard is null ? null : guard.FileSaved,
+                    folder.Exclusions.ToResticArguments());
 
                 guard?.Finish();
                 summary.FilesFreedUp = guard?.Freed ?? 0;
@@ -234,14 +245,27 @@ public sealed class BackupManager(
     public static bool IsMountSupported => OperatingSystem.IsWindows() || OperatingSystem.IsLinux();
 
     /// <summary>
-    /// Mounts the repository read-only: on Windows at the first drive letter that is
-    /// free, on Linux at a folder of the user.
+    /// Mounts the repository read-only: on Windows at the drive letter that is asked
+    /// for, or at the first one that is free, on Linux at a folder of the user.
     /// </summary>
-    public async Task<MountSession> MountAsync(string volumeName, CancellationToken cancellationToken = default)
+    /// <param name="volumeName">The name the drive shows.</param>
+    /// <param name="cancellationToken">Cancels opening the drive.</param>
+    /// <param name="driveLetter">
+    /// Windows only: the letter to use, such as "R:". If something else uses it, a
+    /// <see cref="DriveLetterInUseException"/> is thrown instead of taking another one.
+    /// </param>
+    public async Task<MountSession> MountAsync(
+        string volumeName, CancellationToken cancellationToken = default, string? driveLetter = null)
     {
         if (!IsMountSupported)
         {
             throw new PlatformNotSupportedException("Mounting is only implemented for Windows and Linux so far.");
+        }
+
+        if (OperatingSystem.IsWindows() && driveLetter is not null
+            && !MountSession.FreeDriveLetters().Contains(driveLetter, StringComparer.OrdinalIgnoreCase))
+        {
+            throw new DriveLetterInUseException(driveLetter);
         }
 
         var client = CreateClient();
@@ -254,6 +278,19 @@ public sealed class BackupManager(
             }
 
             return await client.MountAsync(mountpoint, volumeName, cancellationToken);
+        }
+
+        if (driveLetter is not null)
+        {
+            try
+            {
+                return await client.MountAsync(driveLetter.ToUpperInvariant(), volumeName, cancellationToken);
+            }
+            catch (ResticException e) when (e.Message.Contains("already in use", StringComparison.OrdinalIgnoreCase))
+            {
+                // taken by something Windows does not list as a drive
+                throw new DriveLetterInUseException(driveLetter);
+            }
         }
 
         foreach (var letter in MountSession.FreeDriveLetters())

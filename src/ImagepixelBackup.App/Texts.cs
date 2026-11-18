@@ -92,6 +92,11 @@ public static class Texts
 
     public static string ShowDrive => $"Im {FileManager} anzeigen";
 
+    /// <summary>What stands in front of the drive letter the backup will be opened under.</summary>
+    public const string DriveLetterLabel = "Verbinden als Laufwerk";
+
+    public const string NoDriveLetter = "Es ist kein Laufwerksbuchstabe frei. Trenne ein anderes Laufwerk, um das Backup zu öffnen.";
+
     /// <summary>Says that the drive is open. Only Windows gives it a letter worth naming.</summary>
     public static string DriveOpen(string mountpoint) =>
         OperatingSystem.IsWindows() ? $"Laufwerk {mountpoint} ist geöffnet" : "Das Laufwerk ist geöffnet";
@@ -133,6 +138,94 @@ public static class Texts
             ? $"{bytes} {units[0]}"
             : string.Create(German, $"{value:0.#} {units[unit]}");
     }
+
+    /// <summary>Formats how fast a backup gets through the data, for example "4,2 MB/s".</summary>
+    public static string Speed(double bytesPerSecond) => Bytes((long)Math.Max(0, bytesPerSecond)) + "/s";
+
+    /// <summary>
+    /// Shortens a long path in the middle, so that its beginning and the name of the file
+    /// stay readable: "Code\…\src\Datei.cs".
+    /// </summary>
+    public static string ShortenPath(string path, int maxLength)
+    {
+        if (path.Length <= maxLength)
+        {
+            return path;
+        }
+
+        var separator = System.IO.Path.DirectorySeparatorChar;
+        var first = path.IndexOf(separator);
+        var head = first is > 0 and < 24 ? path[..(first + 1)] + "…" : "…";
+
+        // as much of the end as fits, starting at a folder if there is one
+        var tail = path[^Math.Max(1, maxLength - head.Length)..];
+        var cut = tail.IndexOf(separator);
+        return head + (cut >= 0 && cut < tail.Length - 1 ? tail[cut..] : tail);
+    }
+
+    /// <summary>What the setup says when the customer came to move to another storage.</summary>
+    public static string SwitchNote(string storage) =>
+        $"Du bist mit „{storage}“ verbunden. Daran ändert sich nichts, solange du hier keinen anderen Speicher einrichtest: "
+        + "Deine Sicherungen laufen weiter. Das Backup im bisherigen Speicher bleibt in jedem Fall erhalten.";
+
+    public const string SetupCodeAccepted = "Einrichtungscode erkannt.";
+
+    public const string SetupCodeProblem =
+        "Das ist kein gültiger Einrichtungscode. Bitte füge ihn vollständig ein, so wie du ihn von Imagepixel bekommen hast.";
+
+    public const string SetupCodeMissing = "Bitte füge den Einrichtungscode ein, den du von Imagepixel bekommen hast.";
+
+    /// <summary>How the overview names what a folder leaves out, for example "Ausnahmen: 3 Regeln".</summary>
+    public static string Exclusions(int count) => count == 1 ? "Ausnahmen: 1 Regel" : $"Ausnahmen: {count} Regeln";
+
+    public const string ExclusionsNote =
+        "Ohne Ausnahmen wird der Ordner vollständig gesichert. Was du hier auslässt, fehlt in den Sicherungen, die ab jetzt entstehen, "
+        + "und lässt sich aus ihnen nicht wiederherstellen. Was schon gesichert ist, bleibt in den älteren Ständen erhalten.";
+
+    public const string ExclusionsRulesHint =
+        "Eine Regel gilt in allen Unterordnern, Groß- und Kleinschreibung spielt keine Rolle. "
+        + "Ein Name trifft Ordner und Dateien, die so heißen.";
+
+    public const string ExclusionsGitWarning =
+        "Achtung: Damit wird auch der Ordner „.git“ ausgelassen. Er enthält den gesamten Verlauf eines Projekts.";
+
+    public const string SuggestionIntro =
+        "In diesem Ordner liegen Dinge, die sich meist neu erzeugen oder leicht wieder beschaffen lassen. "
+        + "Wenn du sie auslässt, wird deine Sicherung kleiner und schneller. Die Sicherung startet, sobald du dich entschieden hast.";
+
+    public const string SuggestionLater =
+        "Die Größen sind die auf deinem Rechner; im Backup fällt die Ersparnis meist etwas kleiner aus. "
+        + "Du kannst die Ausnahmen später jederzeit unter „Ausnahmen …“ ändern.";
+
+    /// <summary>What a folder says while its first backup waits for the answer to the suggestion.</summary>
+    public static string SuggestionWaiting(long bytes) =>
+        $"Vor der ersten Sicherung: In diesem Ordner lassen sich etwa {Bytes(bytes)} auslassen. Die Sicherung startet, sobald du dich entschieden hast.";
+
+    /// <summary>The plain words a ready-made suggestion is offered in.</summary>
+    public static string PresetTitle(string id) => id switch
+    {
+        "temporary" => "Keine temporären Dateien",
+        "build-output" => "Keine Ordner, die Entwicklungswerkzeuge neu erzeugen",
+        "videos" => "Keine Videos",
+        "installers" => "Keine Installationsdateien und Abbilder",
+        _ => id,
+    };
+
+    /// <summary>A rule of the customer's own as a sentence.</summary>
+    public static string Rule(ExclusionKind kind, string value) => kind switch
+    {
+        ExclusionKind.Extension => $"Dateien mit der Endung .{value}",
+        ExclusionKind.NamePrefix => $"Namen, die mit „{value}“ beginnen",
+        _ => $"Dateien und Ordner mit dem Namen „{value}“",
+    };
+
+    /// <summary>What a paused folder says about going on.</summary>
+    public const string PauseHint = "Beim Fortsetzen wird nicht noch einmal übertragen, was schon im Backup liegt.";
+
+    /// <summary>The button that shows what a running backup is working on, and the one that hides it again.</summary>
+    public const string DetailsShow = "Im Detail anzeigen";
+
+    public const string DetailsHide = "Details ausblenden";
 
     /// <summary>Formats a share as a whole percentage, for example "86 %".</summary>
     public static string Percent(double fraction) =>
@@ -178,6 +271,11 @@ public static class Texts
         if (error is FolderOverlapException overlap)
         {
             return Overlap(overlap.Folder, overlap.Storage);
+        }
+
+        if (error is DriveLetterInUseException drive)
+        {
+            return $"Der Laufwerksbuchstabe {drive.Letter} ist inzwischen belegt. Bitte wähle einen anderen.";
         }
 
         if (error is ResticException { ExitCode: ResticException.ExitWrongPassword })

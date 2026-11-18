@@ -19,6 +19,14 @@
                 <Button Grid.Column="2" Content="Info" VerticalAlignment="Center" Command="{Binding ShowAboutCommand}" />
             </Grid>
 
+            <!-- reached from the overview: the storage in use stays until another one is set up here -->
+            <Border Classes="note" IsVisible="{Binding IsSwitching}">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="{Binding SwitchNote}" TextWrapping="Wrap" />
+                    <Button Content="←  Zurück zur Übersicht" Command="{Binding BackCommand}" />
+                </StackPanel>
+            </Border>
+
             <!-- first of all: back up or restore -->
             <Grid ColumnDefinitions="*,*" ColumnSpacing="12" IsEnabled="{Binding CanEdit}">
                 <Button Classes="tile" Classes.selected="{Binding IsBackup}" Padding="18,16"
@@ -126,23 +134,20 @@
                     <StackPanel IsVisible="{Binding ShowImagepixelFields}">
                         <Border Classes="note" Margin="0,14,0,0">
                             <StackPanel Spacing="3">
-                                <TextBlock FontWeight="SemiBold" Text="Diese Daten bekommst du von Imagepixel" />
+                                <TextBlock FontWeight="SemiBold" Text="Diesen Code bekommst du von Imagepixel" />
                                 <TextBlock Classes="subtle"
-                                           Text="Sie stehen in der Nachricht, die du nach der Einrichtung deines Speichers erhalten hast. Am schnellsten geht es mit dem Einrichtungscode: Er füllt die drei Felder darunter von selbst aus." />
+                                           Text="Er steht in der Nachricht, die du nach der Einrichtung deines Speichers erhalten hast. Mehr brauchst du für die Verbindung nicht." />
                             </StackPanel>
                         </Border>
 
+                        <!-- the code carries the access keys, so it is shown as dots like a password -->
                         <TextBlock Classes="label" Text="Einrichtungscode" />
-                        <TextBox Text="{Binding SetupCodeText}" PlaceholderText="IPB1-… (aus der Nachricht von Imagepixel einfügen)" />
-
-                        <TextBlock Classes="subtle" Margin="0,14,0,0"
-                                   Text="Ohne Einrichtungscode trägst du die drei Angaben einzeln ein:" />
-                        <TextBlock Classes="label" Text="Bucket-Name" />
-                        <TextBox Text="{Binding Bucket}" />
-                        <TextBlock Classes="label" Text="Zugangsschlüssel" />
-                        <TextBox Text="{Binding AccessKeyId}" />
-                        <TextBlock Classes="label" Text="Geheimer Schlüssel" />
-                        <TextBox Text="{Binding SecretAccessKey}" PasswordChar="●" />
+                        <TextBox Text="{Binding SetupCodeText}" PasswordChar="●"
+                                 PlaceholderText="IPB1-… (aus der Nachricht von Imagepixel einfügen)" />
+                        <TextBlock Margin="0,6,0,0" Text="{x:Static local:Texts.SetupCodeAccepted}"
+                                   Foreground="{DynamicResource SuccessTextBrush}" IsVisible="{Binding CodeAccepted}" />
+                        <TextBlock Margin="0,6,0,0" Text="{x:Static local:Texts.SetupCodeProblem}" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource ProblemTextBrush}" IsVisible="{Binding HasCodeProblem}" />
                     </StackPanel>
 
                     <StackPanel IsVisible="{Binding ShowLocalFields}">

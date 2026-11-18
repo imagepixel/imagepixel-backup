@@ -98,17 +98,23 @@
                         <DataTemplate x:DataType="vm:FolderItemViewModel">
                             <Border Classes="card">
                                 <StackPanel Spacing="10">
-                                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                    <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
                                         <StackPanel>
                                             <TextBlock FontSize="15" FontWeight="SemiBold" Text="{Binding Name}" />
                                             <TextBlock Classes="subtle" Text="{Binding Path}" TextWrapping="NoWrap"
                                                        TextTrimming="CharacterEllipsis" />
                                         </StackPanel>
-                                        <Button Grid.Column="1" Content="Jetzt sichern" VerticalAlignment="Center"
-                                                Command="{Binding BackupNowCommand}" IsVisible="{Binding IsIdle}" />
-                                        <Button Grid.Column="1" Content="Abbrechen" VerticalAlignment="Center"
+
+                                        <!-- pausing keeps the folder waiting until the customer goes on, cancelling only ends this run -->
+                                        <Button Grid.Column="1" Content="Pausieren" VerticalAlignment="Center"
+                                                Command="{Binding PauseCommand}" IsVisible="{Binding IsRunning}" />
+                                        <Button Grid.Column="2" Content="Jetzt sichern" VerticalAlignment="Center"
+                                                Command="{Binding BackupNowCommand}" IsVisible="{Binding CanStart}" />
+                                        <Button Grid.Column="2" Classes="accent" Content="Fortsetzen" VerticalAlignment="Center"
+                                                Command="{Binding ResumeCommand}" IsVisible="{Binding CanResume}" />
+                                        <Button Grid.Column="2" Content="Abbrechen" VerticalAlignment="Center"
                                                 Command="{Binding CancelCommand}" IsVisible="{Binding IsRunning}" />
-                                        <Button Grid.Column="2" Content="Entfernen" VerticalAlignment="Center"
+                                        <Button Grid.Column="3" Content="Entfernen" VerticalAlignment="Center"
                                                 Command="{Binding RemoveCommand}" />
                                     </Grid>
 
@@ -117,14 +123,45 @@
                                                   SelectedIndex="{Binding ScheduleIndex}" MinWidth="230" />
                                         <TimePicker SelectedTime="{Binding DailyTime}" ClockIdentifier="24HourClock"
                                                     MinuteIncrement="5" IsVisible="{Binding IsDaily}" />
+
+                                        <!-- what the backup of this folder leaves out, if the customer asked for it -->
+                                        <Button Content="Ausnahmen …" Command="{Binding EditExclusionsCommand}" />
+                                        <TextBlock Classes="subtle" Text="{Binding ExclusionsText}" VerticalAlignment="Center"
+                                                   IsVisible="{Binding HasExclusions}" />
                                     </StackPanel>
 
                                     <TextBlock Classes="subtle" Text="{Binding CloudHint}"
                                                IsVisible="{Binding IsCloudFolder}" />
 
+                                    <!-- the first backup waits until the customer has answered what to leave out -->
+                                    <Border Classes="warning" IsVisible="{Binding HasSuggestion}">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                            <TextBlock Text="{Binding SuggestionText}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                            <Button Grid.Column="1" Classes="accent" Content="Vorschlag ansehen"
+                                                    VerticalAlignment="Center" Command="{Binding ShowSuggestionCommand}" />
+                                        </Grid>
+                                    </Border>
+
                                     <StackPanel IsVisible="{Binding IsRunning}" Spacing="4">
                                         <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressPercent}" />
                                         <TextBlock Classes="subtle" Text="{Binding ProgressText}" />
+                                    </StackPanel>
+
+                                    <!-- what the backup is working on right now, the newest line at the bottom -->
+                                    <StackPanel IsVisible="{Binding CanShowDetails}" Spacing="8">
+                                        <Button Content="{Binding DetailsButtonText}" Command="{Binding ToggleDetailsCommand}" />
+                                        <Border Classes="terminal" IsVisible="{Binding ShowDetails}">
+                                            <StackPanel VerticalAlignment="Bottom">
+                                                <ItemsControl ItemsSource="{Binding DetailLines}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="x:String">
+                                                            <TextBlock Text="{Binding}" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <TextBlock Classes="cursor" Text="▌" IsVisible="{Binding IsRunning}" />
+                                            </StackPanel>
+                                        </Border>
                                     </StackPanel>
 
                                     <Panel IsVisible="{Binding IsIdle}">
@@ -148,12 +185,21 @@
                         <StackPanel Spacing="8">
                             <TextBlock FontSize="15" FontWeight="SemiBold" Text="Als Laufwerk öffnen" />
                             <TextBlock Classes="subtle" Text="{x:Static local:Texts.DriveHint}" />
-                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0"
-                                        IsVisible="{Binding IsNotMounted}">
-                                <Button Classes="accent" Content="Laufwerk öffnen"
-                                        Command="{Binding MountCommand}" IsEnabled="{Binding CanMount}" />
-                                <ProgressBar IsIndeterminate="True" Width="90" VerticalAlignment="Center"
-                                             IsVisible="{Binding IsMounting}" />
+                            <StackPanel Spacing="8" Margin="0,4,0,0" IsVisible="{Binding IsNotMounted}">
+                                <!-- Windows: the letter the drive will get; the customer may pick another free one -->
+                                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding OffersDriveLetter}">
+                                    <TextBlock Text="{x:Static local:Texts.DriveLetterLabel}" VerticalAlignment="Center" />
+                                    <ComboBox ItemsSource="{Binding DriveLetters}" SelectedItem="{Binding SelectedDriveLetter}"
+                                              MinWidth="76" IsEnabled="{Binding CanMount}" />
+                                </StackPanel>
+                                <TextBlock Classes="subtle" Text="{x:Static local:Texts.NoDriveLetter}"
+                                           IsVisible="{Binding HasNoDriveLetter}" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Classes="accent" Content="Laufwerk öffnen"
+                                            Command="{Binding MountCommand}" IsEnabled="{Binding CanMount}" />
+                                    <ProgressBar IsIndeterminate="True" Width="90" VerticalAlignment="Center"
+                                                 IsVisible="{Binding IsMounting}" />
+                                </StackPanel>
                             </StackPanel>
                             <StackPanel Spacing="8" Margin="0,4,0,0" IsVisible="{Binding IsMounted}">
                                 <TextBlock Text="{Binding MountText}" FontWeight="Medium"

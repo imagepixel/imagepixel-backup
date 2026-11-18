@@ -37,6 +37,29 @@ public sealed class BackupFolder
 
     /// <summary>How many files the last successful backup could not read.</summary>
     public int LastWarnings { get; set; }
+
+    /// <summary>What the backup of the folder leaves out. Empty unless the user asked for it.</summary>
+    public FolderExclusions Exclusions { get; set; } = new();
+
+    /// <summary>
+    /// Whether the user has said what to leave out, by taking over or turning down the
+    /// suggestion before the first backup or by setting up exceptions themselves. Also
+    /// set when the folder holds nothing worth suggesting.
+    /// </summary>
+    public bool ExclusionsDecided { get; set; }
+
+    /// <summary>
+    /// Since when the backup of the folder is paused, or null if it is not. A paused
+    /// folder is left alone by the schedule until the user lets it go on. What was
+    /// saved before the pause stays in the backup and is not sent again.
+    /// </summary>
+    public DateTimeOffset? PausedAt { get; set; }
+
+    /// <summary>How far the backup had got when it was paused, for the user to read.</summary>
+    public long PausedBytesDone { get; set; }
+
+    /// <summary>How much there was to back up when the backup was paused.</summary>
+    public long PausedBytesTotal { get; set; }
 }
 
 /// <summary>The settings of the application. Secrets are not part of it.</summary>
@@ -54,6 +77,18 @@ public sealed class AppConfig
 
     /// <summary>When <see cref="TermsAccepted"/> was confirmed.</summary>
     public DateTimeOffset? TermsAcceptedAt { get; set; }
+
+    /// <summary>
+    /// Whether the user has been told that closing the window leaves the application
+    /// running in the background. It is said once, the first time they close it.
+    /// </summary>
+    public bool BackgroundExplained { get; set; }
+
+    /// <summary>
+    /// The drive letter the user chose for opening the backup as a drive on Windows,
+    /// such as "R:", or null if they never changed the one that was suggested.
+    /// </summary>
+    public string? DriveLetter { get; set; }
 }
 
 /// <summary>Loads and saves <see cref="AppConfig"/> as a JSON file in the user's profile.</summary>

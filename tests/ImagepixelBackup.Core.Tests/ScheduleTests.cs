@@ -96,4 +96,25 @@ public class ScheduleTests
         Assert.False(BackupSchedule.IsDue(folder, Now));
         Assert.Null(BackupSchedule.NextRun(folder, Now));
     }
+
+    [Theory]
+    [InlineData(ScheduleKind.Hourly)]
+    [InlineData(ScheduleKind.Daily)]
+    public void Paused_folder_waits_until_the_pause_ends(ScheduleKind schedule)
+    {
+        var folder = new BackupFolder
+        {
+            Schedule = schedule,
+            DailyAt = new TimeOnly(12, 0),
+            LastAttempt = Now.AddDays(-2),
+            PausedAt = Now.AddHours(-5),
+        };
+
+        Assert.False(BackupSchedule.IsDue(folder, Now));
+        Assert.Null(BackupSchedule.NextRun(folder, Now));
+
+        // going on makes up for what was missed
+        folder.PausedAt = null;
+        Assert.True(BackupSchedule.IsDue(folder, Now));
+    }
 }

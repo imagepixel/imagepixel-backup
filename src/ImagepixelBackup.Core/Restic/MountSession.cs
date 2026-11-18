@@ -66,6 +66,15 @@ public sealed class MountSession : IAsyncDisposable
     }
 
     /// <summary>
+    /// The drive letter to suggest: the one the user chose before if it is free, else
+    /// the first of the free ones, or null if none is free.
+    /// </summary>
+    public static string? SuggestDriveLetter(IReadOnlyList<string> free, string? preferred) =>
+        preferred is not null && free.Contains(preferred, StringComparer.OrdinalIgnoreCase)
+            ? free.First(letter => string.Equals(letter, preferred, StringComparison.OrdinalIgnoreCase))
+            : free.FirstOrDefault();
+
+    /// <summary>
     /// The folder a repository is mounted at on Linux: one of the user's own that is
     /// emptied when they log out. Its path has no spaces.
     /// </summary>

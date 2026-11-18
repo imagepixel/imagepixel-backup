@@ -320,12 +320,58 @@ public sealed class WalkthroughTests : IDisposable
         Assert.Equal(new TimeOnly(18, 30), saved.DailyAt);
         Assert.Contains("nächste Sicherung", folder.StatusText);
 
-        // what a running backup looks like
+        // what a running backup looks like: amounts, and after a moment the speed
+        Assert.False(folder.CanShowDetails);
         folder.IsRunning = true;
-        folder.ProgressPercent = 42;
-        folder.ProgressText = "1,2 GB von 2,9 GB · 1.204 von 3.870 Dateien";
+        var began = new DateTimeOffset(2026, 11, 18, 15, 0, 0, TimeSpan.FromHours(1));
+        const long mb = 1024 * 1024;
+        folder.ShowProgress(new BackupProgress { TotalFiles = 3870 }, began);
+        Assert.Equal("Dateien werden gezählt …", folder.ProgressText);
+
+        folder.ShowProgress(Progress(1200 * mb, 1200, "Dokumente/Brief.txt"), began.AddSeconds(1));
+        Assert.Equal("1,2 GB von 2,9 GB · 1200 von 3870 Dateien", folder.ProgressText);
+        folder.ShowProgress(Progress(1218 * mb, 1204, "Dokumente/Fotos.zip"), began.AddSeconds(3));
+        Assert.Equal("1,2 GB von 2,9 GB · 1204 von 3870 Dateien · 9 MB/s", folder.ProgressText);
+        Assert.Equal(42, folder.ProgressPercent, 3);
         Capture(window, "07-uebersicht-sicherung-laeuft");
+
+        // the details are offered while the backup runs and stay closed until asked for
+        Assert.True(folder.CanShowDetails);
+        Assert.False(folder.ShowDetails);
+        Assert.Equal("Im Detail anzeigen", folder.DetailsButtonText);
+
+        // the backups that ran before left their first and their last line
+        Assert.Contains("gestartet", folder.DetailLines[0]);
+        Assert.Contains("Fertig: ", folder.DetailLines[^1]);
+
+        folder.ToggleDetailsCommand.Execute(null);
+        Assert.Equal("Details ausblenden", folder.DetailsButtonText);
+        for (var step = 0; step < 30; step++)
+        {
+            var file = $"Dokumente/Verträge 2026/Anlage {step + 1}.pdf";
+            folder.ShowProgress(Progress((1220 + 9 * step) * mb, 1205 + step, file), began.AddSeconds(4 + step));
+        }
+
+        // only the last lines are kept, the newest at the bottom, each with its time
+        Assert.Equal(FolderItemViewModel.MaxDetailLines, folder.DetailLines.Count);
+        Assert.EndsWith(Path.Combine("Dokumente", "Verträge 2026", "Anlage 30.pdf"), folder.DetailLines[^1]);
+        Assert.Matches(@"^\d\d:\d\d:\d\d  ", folder.DetailLines[^1]);
+        Assert.Contains("9 MB/s", folder.ProgressText);
+
+        // the same file is not listed twice in a row, and lines do not come faster than they can be read
+        var lines = folder.DetailLines.ToList();
+        folder.ShowProgress(Progress(1500 * mb, 1240, "Dokumente/Verträge 2026/Anlage 30.pdf"), began.AddSeconds(40));
+        Assert.Equal(lines, folder.DetailLines);
+        folder.ShowProgress(Progress(1509 * mb, 1241, "Dokumente/Brief.txt"), began.AddSeconds(41));
+        folder.ShowProgress(Progress(1509 * mb, 1241, "Dokumente/Zu schnell.txt"), began.AddSeconds(41.05));
+        Assert.EndsWith("Brief.txt", folder.DetailLines[^1]);
+        Capture(window, "07a-uebersicht-details");
+
+        // after the backup the details stay until they are closed
         folder.IsRunning = false;
+        Assert.True(folder.CanShowDetails);
+        folder.ToggleDetailsCommand.Execute(null);
+        Assert.False(folder.CanShowDetails);
 
         // --- restore -----------------------------------------------------------------
         dashboard.RestoreCommand.Execute(null);
@@ -355,11 +401,58 @@ public sealed class WalkthroughTests : IDisposable
         Assert.Same(dashboard, main.CurrentPage);
 
         // --- drive -------------------------------------------------------------------
+        string? chosenLetter = null;
+        if (dashboard.OffersDriveLetter)
+        {
+            // Windows: the letter the drive will get is suggested, and only free letters are offered
+            // another program may have taken or freed a letter since the overview was opened
+            dashboard.RefreshDriveLetters();
+            var free = MountSession.FreeDriveLetters();
+            Assert.True(free.Count > 1, "the test needs two free drive letters");
+            Assert.Equal(free[0], dashboard.SelectedDriveLetter);
+            Assert.Equal(free.Order().ToList(), dashboard.DriveLetters.ToList());
+            Assert.DoesNotContain(Path.GetPathRoot(Environment.SystemDirectory)![..2], dashboard.DriveLetters);
+            Assert.True(dashboard.CanMount);
+
+            // a suggestion is not remembered, a choice is
+            Assert.Null(manager.Config.DriveLetter);
+            Capture(window, "09a-uebersicht-laufwerk-buchstabe");
+            chosenLetter = free[^1];
+            dashboard.SelectedDriveLetter = chosenLetter;
+            Assert.Equal(chosenLetter, new ConfigStore(DataFolder).Load().DriveLetter);
+
+            // something else took the letter: another one is suggested for now, theirs comes back later
+            dashboard.FindFreeDriveLetters = () => [.. free.Where(letter => letter != chosenLetter)];
+            dashboard.RefreshDriveLetters();
+            Assert.Equal(free[0], dashboard.SelectedDriveLetter);
+            Assert.DoesNotContain(chosenLetter, dashboard.DriveLetters);
+            Assert.Equal(chosenLetter, manager.Config.DriveLetter);
+
+            // no letter free at all: the drive cannot be opened
+            dashboard.FindFreeDriveLetters = () => [];
+            dashboard.RefreshDriveLetters();
+            Assert.True(dashboard.HasNoDriveLetter);
+            Assert.False(dashboard.CanMount);
+
+            dashboard.FindFreeDriveLetters = MountSession.FreeDriveLetters;
+            dashboard.RefreshDriveLetters();
+            Assert.Equal(chosenLetter, dashboard.SelectedDriveLetter);
+            Assert.False(dashboard.HasNoDriveLetter);
+            Assert.True(dashboard.CanMount);
+        }
+
         if (CanMount)
         {
             await dashboard.MountCommand.ExecuteAsync(null);
             Assert.True(dashboard.IsMounted, dashboard.StatusLine);
             var drive = Assert.Single(opened);
+            if (chosenLetter is not null)
+            {
+                // the drive got the letter that was shown
+                Assert.StartsWith(chosenLetter, drive);
+                Assert.Contains(chosenLetter, dashboard.MountText);
+            }
+
             Capture(window, "09-uebersicht-laufwerk-geoeffnet");
 
             var snapshot = SnapshotFolders(drive).Last();
@@ -576,6 +669,460 @@ public sealed class WalkthroughTests : IDisposable
     }
 
     [AvaloniaFact]
+    public async Task Paused_backup_waits_for_the_customer_also_after_a_restart()
+    {
+        var restic = ResticClient.FindRestic();
+        Assert.SkipWhen(restic is null, "restic has not been built");
+
+        // a backup that is set up, with one folder that is only backed up when asked
+        var secrets = new MemorySecretStore();
+        var manager = new BackupManager(new ConfigStore(DataFolder), secrets, restic!);
+        manager.AcceptTerms(Texts.TermsVersion);
+        await manager.ConnectAsync(
+            new StorageSettings { Kind = StorageKind.LocalFolder, LocalPath = StorageFolder }, Password, null, createIfMissing: true);
+        manager.AddFolder(SourceFolder).Schedule = ScheduleKind.Hourly;
+        manager.Save();
+
+        var main = new MainViewModel(manager, []);
+        var dashboard = Assert.IsType<DashboardViewModel>(main.CurrentPage);
+        var folder = Assert.Single(dashboard.Folders);
+        Assert.True(folder.CanStart);
+        Assert.False(folder.CanResume);
+
+        // pausing right after the start: the run ends and the folder waits
+        var run = folder.BackupNowCommand.ExecuteAsync(null);
+        Assert.True(folder.IsRunning);
+        folder.ShowProgress(new BackupProgress { TotalBytes = 2 * 1024 * 1024, BytesDone = 1024 * 1024, TotalFiles = 3, FilesDone = 1 }, DateTimeOffset.Now);
+        folder.PauseCommand.Execute(null);
+        await run;
+
+        Assert.False(folder.IsRunning);
+        Assert.True(folder.IsPaused);
+        Assert.True(folder.CanResume);
+        Assert.False(folder.CanStart);
+        Assert.StartsWith("Pausiert seit heute, ", folder.StatusText);
+        Assert.Contains("1 MB von 2 MB waren geschafft", folder.StatusText);
+        Assert.Contains("pausiert", dashboard.StatusLine);
+        Assert.Null(folder.Folder.LastSuccess);
+
+        // the schedule leaves the folder alone
+        Assert.False(BackupSchedule.IsDue(folder.Folder, DateTimeOffset.Now.AddDays(3)));
+        await dashboard.RunDueBackupsAsync();
+        Assert.Null(folder.Folder.LastSuccess);
+        await main.ShutdownAsync();
+
+        // after a restart, as after an update, the settings are as they were and the folder still waits
+        var restarted = new MainViewModel(new BackupManager(new ConfigStore(DataFolder), secrets, restic!), []);
+        var again = Assert.Single(Assert.IsType<DashboardViewModel>(restarted.CurrentPage).Folders);
+        Assert.Equal(SourceFolder, again.Path);
+        Assert.Equal((int)ScheduleKind.Hourly, again.ScheduleIndex);
+        Assert.True(again.IsPaused);
+        Assert.True(again.CanResume);
+
+        var window = new MainWindow { DataContext = restarted };
+        window.Show();
+        Capture(window, "07b-uebersicht-pausiert");
+
+        // going on backs the folder up at once and ends the pause
+        await again.ResumeCommand.ExecuteAsync(null);
+        Assert.False(again.IsPaused);
+        Assert.NotNull(again.Folder.LastSuccess);
+        Assert.StartsWith("Zuletzt gesichert: heute", again.StatusText);
+        Assert.Null(new ConfigStore(DataFolder).Load().Folders[0].PausedAt);
+
+        // cancelling, unlike pausing, only ends the run
+        var second = again.BackupNowCommand.ExecuteAsync(null);
+        again.CancelCommand.Execute(null);
+        await second;
+        Assert.False(again.IsPaused);
+        Assert.Contains("abgebrochen", ((DashboardViewModel)restarted.CurrentPage).StatusLine);
+
+        window.Close();
+        await restarted.ShutdownAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task Changing_the_storage_forgets_nothing_until_another_one_is_connected()
+    {
+        var restic = ResticClient.FindRestic();
+        Assert.SkipWhen(restic is null, "restic has not been built");
+
+        var secrets = new MemorySecretStore();
+        var manager = new BackupManager(new ConfigStore(DataFolder), secrets, restic!);
+        manager.AcceptTerms(Texts.TermsVersion);
+        await manager.ConnectAsync(
+            new StorageSettings { Kind = StorageKind.LocalFolder, LocalPath = StorageFolder }, Password, null, createIfMissing: true);
+        manager.AddFolder(SourceFolder).Schedule = ScheduleKind.Manual;
+        manager.Save();
+
+        var main = new MainViewModel(manager, []);
+        var window = new MainWindow { DataContext = main };
+        window.Show();
+        var dashboard = Assert.IsType<DashboardViewModel>(main.CurrentPage);
+
+        // a click on "Speicher wechseln" only opens the setup
+        dashboard.ChangeStorageCommand.Execute(null);
+        var setup = Assert.IsType<SetupViewModel>(main.CurrentPage);
+        Assert.True(setup.IsSwitching);
+        Assert.Contains("Du bist mit", setup.SwitchNote);
+        Assert.Contains("Sicherungen laufen weiter", setup.SwitchNote);
+        Assert.Equal([SourceFolder], setup.Sources);
+        Capture(window, "14-speicher-wechseln");
+
+        // nothing was forgotten and nothing was stopped
+        Assert.True(manager.IsConnected);
+        Assert.Equal(StorageFolder, new ConfigStore(DataFolder).Load().Storage!.LocalPath);
+        Assert.Equal(Password, secrets.Get(SecretNames.RepositoryPassword));
+        Assert.True(main.IsScheduleRunning);
+
+        // and there is a way back
+        setup.BackCommand.Execute(null);
+        Assert.Same(dashboard, main.CurrentPage);
+
+        // an attempt that does not work out changes nothing either
+        dashboard.ChangeStorageCommand.Execute(null);
+        setup = Assert.IsType<SetupViewModel>(main.CurrentPage);
+        setup.ChooseModeCommand.Execute("Backup");
+        await setup.ConnectCommand.ExecuteAsync(null);
+        Assert.Equal(Texts.SetupCodeMissing, setup.ErrorMessage);
+
+        setup.SetupCodeText = "IPB1-kaputt";
+        Assert.True(setup.HasCodeProblem);
+        Assert.False(setup.CodeAccepted);
+        await setup.ConnectCommand.ExecuteAsync(null);
+        Assert.Equal(Texts.SetupCodeProblem, setup.ErrorMessage);
+        Assert.Equal(StorageFolder, manager.Config.Storage!.LocalPath);
+        Assert.Equal(Password, secrets.Get(SecretNames.RepositoryPassword));
+
+        // moving for real: another place and another password
+        var other = Path.Combine(_root, "Zweite Festplatte", "Backup");
+        setup.ChooseKindCommand.Execute("LocalFolder");
+        setup.LocalPath = other;
+        setup.Password = "ein-anderes-passwort";
+        setup.PasswordRepeat = "ein-anderes-passwort";
+        await setup.ConnectCommand.ExecuteAsync(null);
+        Assert.Null(setup.ErrorMessage);
+
+        var next = Assert.IsType<DashboardViewModel>(main.CurrentPage);
+        Assert.NotSame(dashboard, next);
+        Assert.Equal(other, new ConfigStore(DataFolder).Load().Storage!.LocalPath);
+        Assert.Equal("ein-anderes-passwort", secrets.Get(SecretNames.RepositoryPassword));
+        Assert.Equal(SourceFolder, Assert.Single(next.Folders).Path);
+
+        // the backup in the previous storage is still there
+        Assert.True(File.Exists(Path.Combine(StorageFolder, "config")));
+
+        window.Close();
+        await main.ShutdownAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task Closing_the_window_or_quitting_during_a_backup_asks_first()
+    {
+        var restic = ResticClient.FindRestic();
+        Assert.SkipWhen(restic is null, "restic has not been built");
+
+        var secrets = new MemorySecretStore();
+        var manager = new BackupManager(new ConfigStore(DataFolder), secrets, restic!);
+        manager.AcceptTerms(Texts.TermsVersion);
+        await manager.ConnectAsync(
+            new StorageSettings { Kind = StorageKind.LocalFolder, LocalPath = StorageFolder }, Password, null, createIfMissing: true);
+        manager.AddFolder(SourceFolder);
+
+        var main = new MainViewModel(manager, []);
+        var hidden = 0;
+        var quit = 0;
+        main.HideWindow = () => hidden++;
+        main.Quit = () =>
+        {
+            quit++;
+            return Task.CompletedTask;
+        };
+        var window = new MainWindow { DataContext = main };
+        window.Show();
+        var dashboard = Assert.IsType<DashboardViewModel>(main.CurrentPage);
+        var folder = Assert.Single(dashboard.Folders);
+
+        // the very first time the window is closed, a page says that the application stays
+        Assert.False(main.MayCloseWindowSilently());
+        var leave = Assert.IsType<LeaveViewModel>(main.CurrentPage);
+        Assert.False(leave.IsBackupRunning);
+        Assert.Equal("Imagepixel Backup läuft im Hintergrund weiter", leave.Title);
+        Assert.True(leave.CanCloseWindow);
+        Capture(window, "15-fenster-schliessen-erstes-mal");
+        leave.CloseWindowCommand.Execute(null);
+        Assert.Equal(1, hidden);
+        Assert.Same(dashboard, main.CurrentPage);
+        Assert.True(new ConfigStore(DataFolder).Load().BackgroundExplained);
+
+        // from then on the window closes without a word while nothing runs, and so does quitting
+        Assert.True(main.MayCloseWindowSilently());
+        Assert.True(main.MayQuitSilently());
+        Assert.Same(dashboard, main.CurrentPage);
+
+        // while a backup runs, closing explains that the backup goes on
+        folder.IsRunning = true;
+        Assert.True(main.IsBackupRunning);
+        Assert.False(main.MayCloseWindowSilently());
+        leave = Assert.IsType<LeaveViewModel>(main.CurrentPage);
+        Assert.True(leave.IsBackupRunning);
+        Assert.Equal("Die Sicherung läuft im Hintergrund weiter", leave.Title);
+        Assert.Contains("sichert zu Ende", leave.Text);
+        Capture(window, "15a-fenster-schliessen-sicherung-laeuft");
+        leave.StayCommand.Execute(null);
+        Assert.Same(dashboard, main.CurrentPage);
+        Assert.Equal(1, hidden);
+
+        // quitting would stop the backup, so it asks and only quits on a clear answer
+        Assert.False(main.MayQuitSilently());
+        leave = Assert.IsType<LeaveViewModel>(main.CurrentPage);
+        Assert.True(leave.IsQuitting);
+        Assert.False(leave.CanCloseWindow);
+        Assert.Contains("abgebrochen", leave.Text);
+        Assert.Contains("beim nächsten Start", leave.Text);
+        Capture(window, "15b-beenden-sicherung-laeuft");
+        leave.StayCommand.Execute(null);
+        Assert.Equal(0, quit);
+        Assert.Same(dashboard, main.CurrentPage);
+
+        Assert.False(main.MayQuitSilently());
+        await Assert.IsType<LeaveViewModel>(main.CurrentPage).QuitCommand.ExecuteAsync(null);
+        Assert.Equal(1, quit);
+        folder.IsRunning = false;
+
+        // a backup that the end of the application stops counts as not attempted and is due again at once
+        Assert.Null(folder.Folder.LastAttempt);
+        var run = folder.BackupNowCommand.ExecuteAsync(null);
+        folder.CancelBackup();
+        await run;
+        Assert.Null(folder.Folder.LastAttempt);
+        Assert.Null(new ConfigStore(DataFolder).Load().Folders[0].LastAttempt);
+        Assert.True(BackupSchedule.IsDue(folder.Folder, DateTimeOffset.Now));
+        Assert.False(folder.IsPaused);
+
+        window.Close();
+        await main.ShutdownAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task Exceptions_leave_out_what_the_customer_chose_and_nothing_else()
+    {
+        var restic = ResticClient.FindRestic();
+        Assert.SkipWhen(restic is null, "restic has not been built");
+
+        // a folder as a developer has it: things worth keeping next to things that can be made again
+        Directory.CreateDirectory(Path.Combine(SourceFolder, "node_modules", "paket"));
+        File.WriteAllText(Path.Combine(SourceFolder, "node_modules", "paket", "index.js"), "neu erzeugbar");
+        Directory.CreateDirectory(Path.Combine(SourceFolder, "Projekt", "NODE_MODULES"));
+        File.WriteAllText(Path.Combine(SourceFolder, "Projekt", "NODE_MODULES", "x.js"), "neu erzeugbar");
+        File.WriteAllText(Path.Combine(SourceFolder, "Projekt", "Programm.cs"), "Quelltext");
+        File.WriteAllText(Path.Combine(SourceFolder, "Protokoll.LOG"), "Protokoll");
+        File.WriteAllText(Path.Combine(SourceFolder, "Film.mp4"), "Video");
+        Directory.CreateDirectory(Path.Combine(SourceFolder, ".git"));
+        File.WriteAllText(Path.Combine(SourceFolder, ".git", "HEAD"), "ref: refs/heads/main");
+
+        var manager = new BackupManager(new ConfigStore(DataFolder), new MemorySecretStore(), restic!);
+        manager.AcceptTerms(Texts.TermsVersion);
+        await manager.ConnectAsync(
+            new StorageSettings { Kind = StorageKind.LocalFolder, LocalPath = StorageFolder }, Password, null, createIfMissing: true);
+        manager.AddFolder(SourceFolder).Schedule = ScheduleKind.Manual;
+        manager.Save();
+
+        var main = new MainViewModel(manager, []);
+        var window = new MainWindow { DataContext = main };
+        window.Show();
+        var dashboard = Assert.IsType<DashboardViewModel>(main.CurrentPage);
+        var folder = Assert.Single(dashboard.Folders);
+        Assert.False(folder.HasExclusions);
+        Assert.Equal("", folder.ExclusionsText);
+
+        // nothing is ticked for the customer, and leaving the page changes nothing
+        folder.EditExclusionsCommand.Execute(null);
+        var page = Assert.IsType<ExclusionsViewModel>(main.CurrentPage);
+        Assert.Equal(4, page.Presets.Count);
+        Assert.All(page.Presets, preset => Assert.False(preset.IsOn));
+        Assert.False(page.LimitSize);
+        Assert.Empty(page.Rules);
+        page.Presets[0].IsOn = true;
+        page.CancelCommand.Execute(null);
+        Assert.Same(dashboard, main.CurrentPage);
+        Assert.False(folder.HasExclusions);
+
+        // suggestions in plain words
+        folder.EditExclusionsCommand.Execute(null);
+        page = Assert.IsType<ExclusionsViewModel>(main.CurrentPage);
+        var buildOutput = page.Presets.Single(preset => preset.Preset == FolderExclusions.BuildOutput);
+        Assert.Equal("Keine Ordner, die Entwicklungswerkzeuge neu erzeugen", buildOutput.Title);
+        Assert.Contains("node_modules", buildOutput.Detail);
+        buildOutput.IsOn = true;
+        page.Presets.Single(preset => preset.Preset == FolderExclusions.Videos).IsOn = true;
+
+        // a rule of the customer's own, however they type the ending
+        page.NewKindIndex = (int)ExclusionKind.Extension;
+        page.NewValue = "*.log";
+        page.AddRuleCommand.Execute(null);
+        Assert.Equal("Dateien mit der Endung .log", Assert.Single(page.Rules).Text);
+        Assert.Equal("", page.NewValue);
+
+        page.NewValue = ".LOG";
+        page.AddRuleCommand.Execute(null);
+        Assert.Equal("Diese Regel gibt es schon.", page.RuleMessage);
+        page.NewValue = @"Ordner\Datei";
+        page.AddRuleCommand.Execute(null);
+        Assert.StartsWith("Bitte gib eine Endung oder einen Namen ein", page.RuleMessage);
+        Assert.Single(page.Rules);
+
+        // a rule for names with a dot would take the history of the project along: said at once
+        Assert.False(page.LeavesOutGit);
+        page.NewKindIndex = (int)ExclusionKind.NamePrefix;
+        page.NewValue = ".";
+        page.AddRuleCommand.Execute(null);
+        Assert.Null(page.RuleMessage);
+        Assert.True(page.LeavesOutGit);
+        page.LimitSize = true;
+        page.SizeIndex = 1;
+        window.Height = 1180;
+        Capture(window, "16-ausnahmen");
+        window.Height = 700;
+        page.RemoveRuleCommand.Execute(page.Rules[1]);
+        Assert.False(page.LeavesOutGit);
+
+        page.SaveCommand.Execute(null);
+        Assert.Same(dashboard, main.CurrentPage);
+        Assert.True(folder.HasExclusions);
+        Assert.Equal("Ausnahmen: 4 Regeln", folder.ExclusionsText);
+        Capture(window, "16a-uebersicht-mit-ausnahmen");
+
+        var saved = new ConfigStore(DataFolder).Load().Folders[0].Exclusions;
+        Assert.Equal([FolderExclusions.BuildOutput.Id, FolderExclusions.Videos.Id], saved.Presets);
+        Assert.Equal(1024, saved.LargerThanMb);
+
+        // the backup follows the rules: what was chosen is missing, everything else is there
+        await folder.BackupNowCommand.ExecuteAsync(null);
+        Assert.NotNull(folder.Folder.LastSuccess);
+        var snapshot = (await manager.GetSnapshotsAsync())[^1];
+        await manager.RestoreAsync(snapshot.Id, RestoreFolder);
+        var restored = Path.Combine(RestoreFolder, "Dokumente");
+
+        Assert.True(File.Exists(Path.Combine(restored, "Brief.txt")));
+        Assert.True(File.Exists(Path.Combine(restored, "Fotos.zip")));
+        Assert.True(File.Exists(Path.Combine(restored, "Projekt", "Programm.cs")));
+        Assert.True(File.Exists(Path.Combine(restored, ".git", "HEAD")));
+
+        Assert.False(Directory.Exists(Path.Combine(restored, "node_modules")));
+        Assert.False(Directory.Exists(Path.Combine(restored, "Projekt", "NODE_MODULES")));
+        Assert.False(File.Exists(Path.Combine(restored, "Protokoll.LOG")));
+        Assert.False(File.Exists(Path.Combine(restored, "Film.mp4")));
+
+        window.Close();
+        await main.ShutdownAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task First_backup_waits_for_the_answer_to_the_suggested_exceptions()
+    {
+        var restic = ResticClient.FindRestic();
+        Assert.SkipWhen(restic is null, "restic has not been built");
+
+        // two folders of a developer, each with more than enough that can be made again
+        var second = Path.Combine(_root, "Zweites Projekt");
+        foreach (var folderPath in new[] { SourceFolder, second })
+        {
+            Directory.CreateDirectory(Path.Combine(folderPath, "node_modules", "paket"));
+            File.WriteAllBytes(Path.Combine(folderPath, "node_modules", "paket", "index.js"), new byte[11 * 1024 * 1024]);
+            File.WriteAllText(Path.Combine(folderPath, "Thumbs.db"), "Vorschaubilder");
+            File.WriteAllText(Path.Combine(folderPath, "Film.mp4"), "Video");
+            File.WriteAllText(Path.Combine(folderPath, "Programm.cs"), "Quelltext");
+        }
+
+        var manager = new BackupManager(new ConfigStore(DataFolder), new MemorySecretStore(), restic!);
+        manager.AcceptTerms(Texts.TermsVersion);
+        await manager.ConnectAsync(
+            new StorageSettings { Kind = StorageKind.LocalFolder, LocalPath = StorageFolder }, Password, null, createIfMissing: true);
+        manager.AddFolder(SourceFolder).Schedule = ScheduleKind.Manual;
+        manager.AddFolder(second).Schedule = ScheduleKind.Manual;
+        manager.Save();
+
+        var main = new MainViewModel(manager, []);
+        var window = new MainWindow { DataContext = main };
+        window.Show();
+        var dashboard = Assert.IsType<DashboardViewModel>(main.CurrentPage);
+        var folder = dashboard.Folders[0];
+        var other = dashboard.Folders[1];
+
+        // starting the first backup looks through the folder and asks instead of backing up
+        await folder.BackupNowCommand.ExecuteAsync(null);
+        var page = Assert.IsType<ExclusionSuggestionViewModel>(main.CurrentPage);
+        Assert.Null(folder.Folder.LastAttempt);
+        Assert.False(folder.IsRunning);
+        Assert.True(folder.HasSuggestion);
+        Assert.Contains("Vor der ersten Sicherung", folder.SuggestionText);
+
+        // what can be made again is ticked, with the space it takes; the customer's own files are only shown
+        var build = page.Options.Single(option => option.Finding.Preset == FolderExclusions.BuildOutput);
+        var temporary = page.Options.Single(option => option.Finding.Preset == FolderExclusions.Temporary);
+        var videos = page.Options.Single(option => option.Finding.Preset == FolderExclusions.Videos);
+        Assert.True(build.IsOn);
+        Assert.True(temporary.IsOn);
+        Assert.False(videos.IsOn);
+        Assert.Equal("etwa 11 MB in 1 Datei", build.Size);
+        Assert.StartsWith("Mit den angehakten Ausnahmen sparst du etwa 11 MB von ", page.Summary);
+        window.Height = 900;
+        Capture(window, "17-vorschlag-ausnahmen");
+        window.Height = 700;
+
+        // the customer changes the suggestion and takes it over: the backup runs with what is ticked
+        temporary.IsOn = false;
+        await page.AcceptCommand.ExecuteAsync(null);
+        Assert.Same(dashboard, main.CurrentPage);
+        Assert.NotNull(folder.Folder.LastSuccess);
+        Assert.False(folder.HasSuggestion);
+        Assert.Equal("Ausnahmen: 1 Regel", folder.ExclusionsText);
+        var saved = new ConfigStore(DataFolder).Load().Folders[0];
+        Assert.True(saved.ExclusionsDecided);
+        Assert.Equal([FolderExclusions.BuildOutput.Id], saved.Exclusions.Presets);
+
+        var snapshot = (await manager.GetSnapshotsAsync())[^1];
+        await manager.RestoreAsync(snapshot.Id, RestoreFolder);
+        var restored = Path.Combine(RestoreFolder, "Dokumente");
+        Assert.True(File.Exists(Path.Combine(restored, "Programm.cs")));
+        Assert.True(File.Exists(Path.Combine(restored, "Thumbs.db")));
+        Assert.True(File.Exists(Path.Combine(restored, "Film.mp4")));
+        Assert.False(Directory.Exists(Path.Combine(restored, "node_modules")));
+
+        // the exceptions can be changed at any time afterwards
+        folder.EditExclusionsCommand.Execute(null);
+        var exceptions = Assert.IsType<ExclusionsViewModel>(main.CurrentPage);
+        Assert.True(exceptions.Presets.Single(preset => preset.Preset == FolderExclusions.BuildOutput).IsOn);
+        exceptions.CancelCommand.Execute(null);
+
+        // a suggestion that comes up while the customer is elsewhere waits in the overview
+        main.ShowAbout();
+        var about = main.CurrentPage;
+        await other.BackupNowCommand.ExecuteAsync(null);
+        Assert.Same(about, main.CurrentPage);
+        Assert.True(other.HasSuggestion);
+        Assert.Null(other.Folder.LastAttempt);
+        main.ShowDashboard();
+        Capture(window, "17a-uebersicht-vorschlag-wartet");
+        other.ShowSuggestionCommand.Execute(null);
+        page = Assert.IsType<ExclusionSuggestionViewModel>(main.CurrentPage);
+
+        // turning it down backs the whole folder up and does not ask again
+        await page.DeclineCommand.ExecuteAsync(null);
+        Assert.Same(dashboard, main.CurrentPage);
+        Assert.NotNull(other.Folder.LastSuccess);
+        Assert.False(other.HasExclusions);
+        Assert.False(other.HasSuggestion);
+        Assert.True(new ConfigStore(DataFolder).Load().Folders[1].ExclusionsDecided);
+        await other.BackupNowCommand.ExecuteAsync(null);
+        Assert.Same(dashboard, main.CurrentPage);
+
+        window.Close();
+        await main.ShutdownAsync();
+    }
+
+    [AvaloniaFact]
     public async Task Backup_that_is_set_up_keeps_its_schedule_until_the_notes_are_confirmed()
     {
         // a computer that was set up by a version without the notes, as after an update
@@ -603,6 +1150,16 @@ public sealed class WalkthroughTests : IDisposable
         Assert.IsType<DashboardViewModel>(next.CurrentPage);
         await next.ShutdownAsync();
     }
+
+    private static BackupProgress Progress(long bytesDone, long filesDone, string currentFile) => new()
+    {
+        Fraction = 0.42,
+        TotalBytes = 2970L * 1024 * 1024,
+        TotalFiles = 3870,
+        BytesDone = bytesDone,
+        FilesDone = filesDone,
+        CurrentFiles = [currentFile],
+    };
 
     private static async Task WaitUntilAsync(Func<bool> condition)
     {

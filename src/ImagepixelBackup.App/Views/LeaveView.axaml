@@ -1,0 +1,33 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ImagepixelBackup.App.ViewModels"
+             x:Class="ImagepixelBackup.App.Views.LeaveView"
+             x:DataType="vm:LeaveViewModel">
+
+    <ScrollViewer>
+        <StackPanel MaxWidth="680" Margin="32,28" Spacing="16">
+
+            <StackPanel Orientation="Horizontal" Spacing="14">
+                <Image Source="/Assets/app-icon.png" Width="56" Height="56" />
+                <TextBlock Classes="title" Text="{Binding Title}" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="560" />
+            </StackPanel>
+
+            <!-- closing the window keeps the backups going, quitting ends them: said before either happens -->
+            <Border Classes="card">
+                <StackPanel Spacing="16">
+                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
+                    <WrapPanel>
+                        <Button Classes="accent" Margin="0,0,8,8" Content="Fenster schließen" Command="{Binding CloseWindowCommand}"
+                                IsVisible="{Binding CanCloseWindow}" />
+                        <Button Classes="accent" Margin="0,0,8,8" Content="{Binding StayText}" Command="{Binding StayCommand}"
+                                IsVisible="{Binding IsQuitting}" />
+                        <Button Margin="0,0,8,8" Content="{Binding StayText}" Command="{Binding StayCommand}"
+                                IsVisible="{Binding CanCloseWindow}" />
+                        <Button Margin="0,0,8,8" Content="{Binding QuitText}" Command="{Binding QuitCommand}" />
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

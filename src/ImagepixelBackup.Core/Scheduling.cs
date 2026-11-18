@@ -15,6 +15,12 @@ public static class BackupSchedule
     /// </summary>
     public static DateTimeOffset? NextRun(BackupFolder folder, DateTimeOffset now)
     {
+        // a paused folder waits for the user
+        if (folder.PausedAt is not null)
+        {
+            return null;
+        }
+
         switch (folder.Schedule)
         {
             case ScheduleKind.Hourly:

@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -44,12 +45,19 @@ public partial class App : Application
             _viewModel = new MainViewModel(manager);
             _viewModel.RefreshStartAtLogin();
             _window = new MainWindow { DataContext = _viewModel };
+            _viewModel.HideWindow = () => _window.Hide();
+            _viewModel.Quit = () => QuitAsync(desktop);
             _window.Closing += (_, e) =>
             {
                 if (!_exiting)
                 {
+                    // The window only hides, the application and its backups go on. While a
+                    // backup runs, and the very first time, a page says so instead of hiding.
                     e.Cancel = true;
-                    _window.Hide();
+                    if (_viewModel.MayCloseWindowSilently())
+                    {
+                        _window.Hide();
+                    }
                 }
             };
 
@@ -100,14 +108,14 @@ public partial class App : Application
         var exit = new NativeMenuItem("Beenden");
         exit.Click += async (_, _) =>
         {
-            _exiting = true;
-            if (_viewModel is not null)
+            // quitting stops a running backup: the customer is asked first, in the window
+            if (_viewModel is not null && !_viewModel.MayQuitSilently())
             {
-                // unmount the drive and stop running backups before leaving
-                await _viewModel.ShutdownAsync();
+                ShowWindow();
+                return;
             }
 
-            desktop.Shutdown();
+            await QuitAsync(desktop);
         };
 
         var tray = new TrayIcon
@@ -119,6 +127,18 @@ public partial class App : Application
         tray.Clicked += (_, _) => ShowWindow();
 
         TrayIcon.SetIcons(this, [tray]);
+    }
+
+    private async Task QuitAsync(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        _exiting = true;
+        if (_viewModel is not null)
+        {
+            // unmount the drive and stop running backups before leaving
+            await _viewModel.ShutdownAsync();
+        }
+
+        desktop.Shutdown();
     }
 
     private void ShowWindow()
