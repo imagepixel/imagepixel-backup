@@ -83,11 +83,23 @@ public sealed class BackupManager(
             // of their runs belongs to the place they ran against.
             if (Config.Storage is { } previous && previous.RepositoryUrl != storage.RepositoryUrl)
             {
-                Config.Folders = Config.Folders.Select(folder => folder.ForAnotherPlace()).ToList();
+                if (IsSameStorage(previous, storage))
+                {
+                    // The same storage with another destination for folders added from now on:
+                    // the folders that are backed up keep going where they went.
+                    foreach (var folder in Config.Folders.Where(folder => folder.Destination is null))
+                    {
+                        folder.Destination = previous.Folder;
+                    }
+                }
+                else
+                {
+                    Config.Folders = Config.Folders.Select(folder => folder.ForAnotherPlace()).ToList();
 
-                // Deletions that waited belong to the previous storage. In the new one a
-                // destination of the same name holds other backups, which must not be touched.
-                Config.Cleanups.Clear();
+                    // Deletions that waited belong to the previous storage. In the new one a
+                    // destination of the same name holds other backups, which must not be touched.
+                    Config.Cleanups.Clear();
+                }
             }
 
             secrets.Set(SecretNames.RepositoryPassword, password);
@@ -337,6 +349,35 @@ public sealed class BackupManager(
         if (destination.Length > 0 && Directory.Exists(root) && !Directory.EnumerateFileSystemEntries(root).Any())
         {
             Directory.Delete(root);
+        }
+    }
+
+    /// <summary>
+    /// Whether two settings describe the same storage: the same bucket in the same region,
+    /// or the same folder on a disk. The access key and the destination may differ.
+    /// </summary>
+    public static bool IsSameStorage(StorageSettings first, StorageSettings second)
+    {
+        if (first.Kind != second.Kind)
+        {
+            return false;
+        }
+
+        if (first.IsS3)
+        {
+            return first.Bucket == second.Bucket && first.Region == second.Region;
+        }
+
+        try
+        {
+            return string.Equals(
+                Path.TrimEndingDirectorySeparator(Path.GetFullPath(first.LocalPath)),
+                Path.TrimEndingDirectorySeparator(Path.GetFullPath(second.LocalPath)),
+                FolderRules.PathComparison);
+        }
+        catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return false;
         }
     }
 

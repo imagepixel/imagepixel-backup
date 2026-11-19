@@ -143,6 +143,11 @@ public partial class DashboardViewModel : ViewModelBase
 
     public bool HasNoFolders => Folders.Count == 0;
 
+    /// <summary>Whether a backup failed because the storage turned down the access data.</summary>
+    public bool HasAccessProblem => Folders.Any(item => Texts.IsAccessProblem(item.Folder.LastError));
+
+    public void RefreshAccessProblem() => OnPropertyChanged(nameof(HasAccessProblem));
+
     /// <summary>Whether this computer can show the backup as a drive.</summary>
     public bool IsMountSupported => BackupManager.IsMountSupported;
 
@@ -505,7 +510,7 @@ public partial class DashboardViewModel : ViewModelBase
     public void OfferSuggestion(FolderItemViewModel folder) => _main.OfferSuggestion(folder);
 
     // Only opens the setup. The storage, its password and the running backups stay as
-    // they are until the customer has connected another storage there.
+    // they are until the customer has saved another setup code or storage there.
     [RelayCommand]
     private void ChangeStorage() => _main.ShowStorageChange();
 

@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Linq;
 using ImagepixelBackup.Core;
 using ImagepixelBackup.Core.Restic;
 
@@ -181,10 +182,44 @@ public static class Texts
         return head + (cut >= 0 && cut < tail.Length - 1 ? tail[cut..] : tail);
     }
 
-    /// <summary>What the setup says when the customer came to move to another storage.</summary>
+    /// <summary>What the button and the page are called that renew the access data or move to another storage.</summary>
+    public const string ChangeStorage = "Einrichtungscode oder Speicher ändern";
+
+    /// <summary>What the info page says about it.</summary>
+    public const string ChangeStorageHint =
+        "Das brauchst du nur, wenn du von Imagepixel einen neuen Einrichtungscode bekommen hast, zum Beispiel nach einem Tausch der Zugangsdaten, "
+        + "oder wenn deine Sicherungen künftig an einem anderen Ort liegen sollen. Deine gesicherten Ordner und ihre Einstellungen bleiben dabei erhalten.";
+
+    /// <summary>What the setup says when the customer came to renew the access data or move to another storage.</summary>
     public static string SwitchNote(string storage) =>
-        $"Du bist mit „{storage}“ verbunden. Daran ändert sich nichts, solange du hier keinen anderen Speicher einrichtest: "
-        + "Deine Sicherungen laufen weiter. Das Backup im bisherigen Speicher bleibt in jedem Fall erhalten.";
+        $"Du bist mit „{storage}“ verbunden. Hier gibst du einen neuen Einrichtungscode ein, den du von Imagepixel bekommen hast, "
+        + "oder richtest einen anderen Speicher ein. Solange du nichts speicherst, bleibt alles, wie es ist, und deine Sicherungen laufen weiter.";
+
+    /// <summary>What step 1 says about the folders that are backed up already.</summary>
+    public const string KeptFoldersNote =
+        "Das sind deine bisherigen Ordner. Sie behalten ihre Einstellungen: Zeitplan und Ausnahmen. "
+        + "Was du hier entfernst, wird nach dem Speichern nicht mehr gesichert; seine bisherigen Sicherungen bleiben erhalten.";
+
+    /// <summary>What the setup says once it is clear that the storage stays the same.</summary>
+    public const string SameStorageNote =
+        "Das ist dein bisheriger Speicher. Es werden nur die Angaben zum Speicher erneuert: Deine Ordner, ihre Ziele und alle Sicherungen bleiben, wie sie sind. "
+        + "Dein Verschlüsselungs-Passwort bleibt dasselbe.";
+
+    /// <summary>What the setup says once it is clear that the backups will go to another storage.</summary>
+    public const string OtherStorageNote =
+        "Das ist ein anderer Speicher. Deine Ordner kommen mit ihren Einstellungen mit und werden dort von vorn gesichert. "
+        + "Deine bisherigen Sicherungen bleiben im alten Speicher und werden nicht gelöscht; geplantes Löschen alter Sicherungen entfällt.";
+
+    /// <summary>What the overview says when the storage turns down the access data.</summary>
+    public const string AccessProblem =
+        "Der Speicher lehnt die Zugangsdaten ab, deshalb schlagen die Sicherungen fehl. Hast du von Imagepixel einen neuen Einrichtungscode bekommen, "
+        + "gib ihn hier ein. Deine Ordner und ihre Einstellungen bleiben dabei erhalten.";
+
+    /// <summary>Whether the error of a backup means that the storage turns down the access data.</summary>
+    public static bool IsAccessProblem(string? error) =>
+        error is not null
+        && new[] { "InvalidAccessKeyId", "SignatureDoesNotMatch", "AccessDenied", "Access Denied", "NoSuchBucket", "bucket does not exist" }
+            .Any(text => error.Contains(text, StringComparison.OrdinalIgnoreCase));
 
     public const string FolderLabel = "Ordner im Speicher (optional)";
 

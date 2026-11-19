@@ -12,6 +12,7 @@ public partial class AboutViewModel : ViewModelBase
     public const string TermsUrl = "https://github.com/imagepixel/imagepixel-backup/blob/main/NUTZUNGSHINWEISE.md";
     public const string ResticUrl = "https://restic.net";
     public const string WinFspUrl = "https://github.com/winfsp/winfsp";
+    public const string RcloneUrl = "https://rclone.org";
 
     private readonly MainViewModel _main;
     private readonly ViewModelBase _previous;
@@ -28,6 +29,15 @@ public partial class AboutViewModel : ViewModelBase
 
     /// <summary>WinFsp is only part of the application where it shows the backup as a drive.</summary>
     public bool ShowWinFsp => OperatingSystem.IsWindows();
+
+    /// <summary>rclone comes with the versions that show drives: Windows and Linux.</summary>
+    public bool ShowRclone => OperatingSystem.IsWindows() || OperatingSystem.IsLinux();
+
+    /// <summary>A setup code or storage can only be changed once one is set up.</summary>
+    public bool CanChangeStorage => _main.HasStorage;
+
+    [RelayCommand]
+    private void ChangeStorage() => _main.ShowStorageChange();
 
     /// <summary>
     /// On macOS the application itself registers to start at login. On Windows the

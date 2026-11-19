@@ -27,6 +27,15 @@
                 </StackPanel>
             </Border>
 
+            <!-- renewing the access data or moving to another storage, which is seldom needed -->
+            <Border Classes="card" IsVisible="{Binding CanChangeStorage}">
+                <StackPanel Spacing="8">
+                    <TextBlock Classes="heading" Text="{x:Static local:Texts.ChangeStorage}" />
+                    <TextBlock Classes="subtle" Text="{x:Static local:Texts.ChangeStorageHint}" />
+                    <Button Content="{x:Static local:Texts.ChangeStorage}" Command="{Binding ChangeStorageCommand}" />
+                </StackPanel>
+            </Border>
+
             <Border Classes="card" IsVisible="{Binding ShowStartAtLogin}">
                 <StackPanel Spacing="8">
                     <TextBlock Classes="heading" Text="Im Hintergrund sichern" />
@@ -75,6 +84,14 @@
                                    Text="Zeigt das Backup als Laufwerk an. WinFsp - Windows File System Proxy, Copyright (C) Bill Zissimopoulos." />
                         <Button Content="github.com/winfsp/winfsp" Margin="0,4,0,0" Command="{Binding OpenLinkCommand}"
                                 CommandParameter="{x:Static vm:AboutViewModel.WinFspUrl}" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="2" IsVisible="{Binding ShowRclone}">
+                        <TextBlock FontWeight="Medium" Text="rclone" />
+                        <TextBlock Classes="subtle"
+                                   Text="Zeigt den Speicher so, wie er ist, mit den verschlüsselten Dateien („Verschlüsselt öffnen“). Copyright (C) 2012 Nick Craig-Wood. MIT-Lizenz." />
+                        <Button Content="rclone.org" Margin="0,4,0,0" Command="{Binding OpenLinkCommand}"
+                                CommandParameter="{x:Static vm:AboutViewModel.RcloneUrl}" />
                     </StackPanel>
 
                     <StackPanel Spacing="2">

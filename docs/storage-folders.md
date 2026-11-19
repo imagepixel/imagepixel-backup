@@ -91,6 +91,23 @@ a deleted object stays as an older version until its retention period has passed
 only then frees the storage. The figures of the application count what can still be
 seen, so they drop at once.
 
+## A new setup code or another storage
+
+The info page leads to "Einrichtungscode oder Speicher ändern", and so does a notice in
+the overview when the storage turns down the access data of a backup. The page says
+before anything is saved what saving will do:
+
+- The same bucket, or the same folder on a disk: only the details of the storage are
+  renewed, typically a new access key. The folders, their destinations, waiting
+  deletions and all backups stay as they are; a changed folder field applies to folders
+  added from then on.
+- Another storage: the folders come along with their schedules and exceptions and are
+  backed up there from the start. Their destinations and waiting deletions are dropped;
+  the backups in the previous storage are not touched.
+
+The folders backed up so far are listed in step 1 of that page. One taken out of the
+list is no longer backed up after saving; its backups stay.
+
 ## Restoring and the drive
 
 The restore page lists the saved states of every destination that may hold backups of

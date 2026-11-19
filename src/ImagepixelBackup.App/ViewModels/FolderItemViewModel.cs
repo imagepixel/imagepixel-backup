@@ -323,6 +323,7 @@ public partial class FolderItemViewModel : ViewModelBase
     /// <summary>Describes the last and the next backup in one line.</summary>
     public void RefreshStatus()
     {
+        _dashboard.RefreshAccessProblem();
         var now = DateTimeOffset.Now;
         IsPaused = Folder.PausedAt is not null;
         if (Folder.PausedAt is { } pausedAt)

@@ -179,6 +179,9 @@ public partial class MainViewModel : ViewModelBase
 
     public DashboardViewModel Dashboard => _dashboard ??= new DashboardViewModel(_manager, this);
 
+    /// <summary>Whether a storage is set up and can be opened.</summary>
+    public bool HasStorage => _manager.IsConnected;
+
     /// <summary>Whether the overview exists, and with it the schedule that runs the backups.</summary>
     public bool IsScheduleRunning => _dashboard is not null;
 

@@ -792,13 +792,15 @@ public sealed class WalkthroughTests : IDisposable
         window.Show();
         var dashboard = Assert.IsType<DashboardViewModel>(main.CurrentPage);
 
-        // a click on "Speicher wechseln" only opens the setup
+        // "Einrichtungscode oder Speicher ändern" only opens the setup
         dashboard.ChangeStorageCommand.Execute(null);
         var setup = Assert.IsType<SetupViewModel>(main.CurrentPage);
         Assert.True(setup.IsSwitching);
+        Assert.Equal(Texts.ChangeStorage, setup.Title);
         Assert.Contains("Du bist mit", setup.SwitchNote);
         Assert.Contains("Sicherungen laufen weiter", setup.SwitchNote);
         Assert.Equal([SourceFolder], setup.Sources);
+        Assert.True(setup.ShowKeptFoldersNote);
 
         Assert.Empty(setup.FoundBackups);
         Capture(window, "14-speicher-wechseln");
@@ -828,12 +830,18 @@ public sealed class WalkthroughTests : IDisposable
         Assert.Equal(StorageFolder, manager.Config.Storage!.LocalPath);
         Assert.Equal(Password, secrets.Get(SecretNames.RepositoryPassword));
 
-        // moving for real: another place and another password
+        // moving for real: another place and another password, said before it is done
         var other = Path.Combine(_root, "Zweite Festplatte", "Backup");
         setup.ChooseKindCommand.Execute("LocalFolder");
         setup.LocalPath = other;
+        Assert.True(setup.IsOtherStorage);
+        Assert.Equal(Texts.OtherStorageNote, setup.StorageChangeNote);
+        Assert.Equal("Zum neuen Speicher wechseln", setup.ConnectText);
         setup.Password = "ein-anderes-passwort";
         setup.PasswordRepeat = "ein-anderes-passwort";
+        window.Height = 1500;
+        Capture(window, "14a-anderer-speicher");
+        window.Height = 700;
         await setup.ConnectCommand.ExecuteAsync(null);
         Assert.Null(setup.ErrorMessage);
 
@@ -1115,6 +1123,133 @@ public sealed class WalkthroughTests : IDisposable
         dashboard.SelectedMountDestination = dashboard.MountDestinations.Single(option => option.Folder == "Notebook");
         await dashboard.OpenEncryptedCommand.ExecuteAsync(null);
         Assert.Equal(Path.Combine(StorageFolder, "Notebook"), opened[^1]);
+
+        window.Close();
+        await main.ShutdownAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task Renewing_the_access_data_of_the_same_storage_keeps_everything()
+    {
+        var restic = ResticClient.FindRestic();
+        Assert.SkipWhen(restic is null, "restic has not been built");
+
+        var photosFolder = Path.Combine(_root, "Fotos");
+        Directory.CreateDirectory(photosFolder);
+        File.WriteAllText(Path.Combine(photosFolder, "Urlaub.jpg"), "ein Bild");
+        var secrets = new MemorySecretStore();
+        var manager = new BackupManager(new ConfigStore(DataFolder), secrets, restic!);
+        manager.AcceptTerms(Texts.TermsVersion);
+        await manager.ConnectAsync(
+            new StorageSettings { Kind = StorageKind.LocalFolder, LocalPath = StorageFolder }, Password, null, createIfMissing: true);
+        var documents = manager.AddFolder(SourceFolder);
+        var photos = manager.AddFolder(photosFolder);
+        documents.Schedule = photos.Schedule = ScheduleKind.Manual;
+        documents.ExclusionsDecided = photos.ExclusionsDecided = true;
+        await manager.BackupAsync(documents);
+        await manager.ChangeDestinationAsync(documents, "Notebook", deleteOldAfterDays: 30);
+        await manager.BackupAsync(documents);
+        var lastSuccess = documents.LastSuccess;
+
+        var main = new MainViewModel(manager, []);
+        main.LoadStorageStatus = () => Task.FromResult<StorageStatus?>(null);
+        var window = new MainWindow { DataContext = main };
+        window.Show();
+        var dashboard = Assert.IsType<DashboardViewModel>(main.CurrentPage);
+
+        // the way there leads through the info page now, with a word on what it is for
+        dashboard.ShowAboutCommand.Execute(null);
+        var about = Assert.IsType<AboutViewModel>(main.CurrentPage);
+        Assert.True(about.CanChangeStorage);
+        window.Height = 1300;
+        Capture(window, "11a-info-einrichtungscode-aendern");
+        window.Height = 700;
+        about.ChangeStorageCommand.Execute(null);
+
+        var setup = Assert.IsType<SetupViewModel>(main.CurrentPage);
+        Assert.Equal(Texts.ChangeStorage, setup.Title);
+        Assert.True(setup.IsBackup);
+        Assert.True(setup.ShowKeptFoldersNote);
+        Assert.False(setup.HasStorageChangeNote);
+
+        // the same place: only the details of the storage are renewed
+        setup.ChooseKindCommand.Execute("LocalFolder");
+        setup.LocalPath = StorageFolder;
+        Assert.True(setup.IsSameStorage);
+        Assert.Equal(Texts.SameStorageNote, setup.StorageChangeNote);
+        Assert.Equal("Speichern", setup.ConnectText);
+
+        // a folder taken out of the list is no longer backed up
+        setup.RemoveSourceCommand.Execute(photosFolder);
+        setup.Password = Password;
+        window.Height = 1500;
+        Capture(window, "14b-gleicher-speicher");
+        window.Height = 700;
+        await setup.ConnectCommand.ExecuteAsync(null);
+        Assert.Null(setup.ErrorMessage);
+
+        // everything else stays as it was: destination, last backup, the deletion that waits
+        var next = Assert.IsType<DashboardViewModel>(main.CurrentPage);
+        var kept = Assert.Single(manager.Config.Folders);
+        Assert.Same(documents, kept);
+        Assert.Equal("Notebook", kept.Destination);
+        Assert.Equal(lastSuccess, kept.LastSuccess);
+        Assert.Single(manager.Config.Cleanups);
+        Assert.Equal("Ziel: Ordner „Notebook“", Assert.Single(next.Folders).DestinationText);
+
+        window.Close();
+        await main.ShutdownAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task Access_data_the_storage_turns_down_lead_to_a_new_setup_code()
+    {
+        // a computer whose last backup failed because the storage turned down its key
+        new ConfigStore(DataFolder).Save(new AppConfig
+        {
+            Storage = new StorageSettings { Kind = StorageKind.ImagepixelStorage, Bucket = "kunde-4711", AccessKeyId = "ALTERSCHLUESSEL" },
+            TermsAccepted = Texts.TermsVersion,
+            Folders =
+            {
+                new BackupFolder
+                {
+                    Path = SourceFolder,
+                    Schedule = ScheduleKind.Manual,
+                    LastAttempt = DateTimeOffset.Now,
+                    LastError = "Fatal: unable to open config file: Stat: The AWS Access Key Id you provided does not exist in our records. InvalidAccessKeyId",
+                },
+            },
+        });
+        var secrets = new MemorySecretStore();
+        secrets.Set(SecretNames.RepositoryPassword, Password);
+        secrets.Set(SecretNames.SecretAccessKey, "alt");
+        var main = new MainViewModel(new BackupManager(new ConfigStore(DataFolder), secrets, "restic"), []);
+        main.LoadStorageStatus = () => Task.FromResult<StorageStatus?>(null);
+        main.FindBackupFolders = (_, _) => Task.FromResult<IReadOnlyList<string>>([]);
+        var window = new MainWindow { DataContext = main };
+        window.Show();
+
+        var dashboard = Assert.IsType<DashboardViewModel>(main.CurrentPage);
+        Assert.True(dashboard.HasAccessProblem);
+        Capture(window, "14c-zugangsdaten-abgelehnt");
+
+        dashboard.ChangeStorageCommand.Execute(null);
+        var setup = Assert.IsType<SetupViewModel>(main.CurrentPage);
+
+        // a new code of the same bucket renews the key only
+        setup.SetupCodeText = new SetupCode("kunde-4711", "NEUERSCHLUESSEL", "neu", "eu-central-2").Encode();
+        Assert.True(setup.IsSameStorage);
+        Assert.Equal("Speichern", setup.ConnectText);
+
+        // the code of another bucket moves, and says so before anything happens
+        setup.SetupCodeText = new SetupCode("kunde-0815", "NEUERSCHLUESSEL", "neu", "eu-central-2").Encode();
+        Assert.True(setup.IsOtherStorage);
+        Assert.Equal(Texts.OtherStorageNote, setup.StorageChangeNote);
+        Assert.Equal("Zum neuen Speicher wechseln", setup.ConnectText);
+
+        // a folder that backs up without trouble raises no alarm
+        Assert.False(Texts.IsAccessProblem("Fatal: unable to save snapshot: some file is locked"));
+        Assert.False(Texts.IsAccessProblem(null));
 
         window.Close();
         await main.ShutdownAsync();

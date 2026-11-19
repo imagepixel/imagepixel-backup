@@ -65,7 +65,7 @@ once, at its first start, and asks to confirm it. They come with every download.
 
 ## Status
 
-Early development, version 0.1.7. The
+Early development, version 0.1.8. The
 [pre-release](https://github.com/imagepixel/imagepixel-backup/releases) has downloads for
 Windows, macOS and Linux. None of them is signed yet.
 
@@ -168,7 +168,7 @@ tests/run-on-linux.sh
 
 # installs a package on a fresh system and checks that the application starts
 docker run --rm --cap-add IPC_LOCK -v "$PWD:/src" ubuntu:rolling \
-    bash /src/installer/linux/smoke-test.sh /src/artifacts/linux/imagepixel-backup_0.1.7_amd64.deb
+    bash /src/installer/linux/smoke-test.sh /src/artifacts/linux/imagepixel-backup_0.1.8_amd64.deb
 ```
 
 Both packages put the application with the .NET runtime and restic into

@@ -55,17 +55,65 @@ public partial class SetupViewModel : ViewModelBase
             OnPropertyChanged(nameof(CanChooseDestination));
             OnPropertyChanged(nameof(ShowImagepixelFields));
             OnPropertyChanged(nameof(ShowLocalFields));
+            OnPropertyChanged(nameof(ShowKeptFoldersNote));
         };
 
-        // moving to another storage: the folders that are backed up come along
+        // renewing the access data or moving: the folders that are backed up come along,
+        // and the destination for new folders stays as it was unless the customer changes it
         if (IsSwitching)
         {
             foreach (var folder in manager.Config.Folders)
             {
                 Sources.Add(folder.Path);
             }
+
+            Mode = SetupMode.Backup;
+            Folder = manager.Config.Storage!.Folder;
         }
     }
+
+    public string Title => IsSwitching ? Texts.ChangeStorage : "Willkommen bei Imagepixel Backup";
+
+    /// <summary>Whether step 1 explains that the folders backed up so far keep their settings.</summary>
+    public bool ShowKeptFoldersNote => IsSwitching && HasSources;
+
+    /// <summary>
+    /// Whether what was entered points at the storage that is connected: the same bucket,
+    /// or the same folder on a disk. Then nothing changes but the access data.
+    /// </summary>
+    public bool IsSameStorage =>
+        IsSwitching && IsBackup && EnteredStorage() is { } entered && BackupManager.IsSameStorage(_manager.Config.Storage!, entered);
+
+    /// <summary>Whether what was entered points at another storage, where the folders start anew.</summary>
+    public bool IsOtherStorage => IsSwitching && IsBackup && EnteredStorage() is not null && !IsSameStorage;
+
+    public string StorageChangeNote => IsSameStorage ? Texts.SameStorageNote : IsOtherStorage ? Texts.OtherStorageNote : "";
+
+    public bool HasStorageChangeNote => IsSameStorage || IsOtherStorage;
+
+    // The storage the fields describe so far, or null while they are not filled in.
+    private StorageSettings? EnteredStorage()
+    {
+        if (IsImagepixel)
+        {
+            return CodeAccepted ? StorageFromFields("") : null;
+        }
+
+        return string.IsNullOrWhiteSpace(LocalPath) ? null : StorageFromFields("");
+    }
+
+    private void NotifyStorageChange()
+    {
+        OnPropertyChanged(nameof(IsSameStorage));
+        OnPropertyChanged(nameof(IsOtherStorage));
+        OnPropertyChanged(nameof(StorageChangeNote));
+        OnPropertyChanged(nameof(HasStorageChangeNote));
+        OnPropertyChanged(nameof(ConnectText));
+    }
+
+    partial void OnKindChanged(StorageKind value) => NotifyStorageChange();
+
+    partial void OnLocalPathChanged(string value) => NotifyStorageChange();
 
     /// <summary>
     /// Whether the customer came here from the overview to move to another storage.
@@ -93,7 +141,9 @@ public partial class SetupViewModel : ViewModelBase
 
     public bool IsRestore => Mode == SetupMode.Restore;
 
-    public string Subtitle => Mode switch
+    public string Subtitle => IsSwitching && IsBackup
+        ? "Für neue Zugangsdaten von Imagepixel oder einen anderen Speicher."
+        : Mode switch
     {
         SetupMode.Backup => "In drei Schritten ist dein Backup eingerichtet.",
         SetupMode.Restore => "In zwei Schritten bist du wieder bei deinen Daten.",
@@ -127,7 +177,10 @@ public partial class SetupViewModel : ViewModelBase
         ? "Verschlüsselungs-Passwort"
         : $"Verschlüsselungs-Passwort (mindestens {MinimumPasswordLength} Zeichen)";
 
-    public string ConnectText => IsRestore ? "Backup öffnen" : "Backup starten";
+    public string ConnectText => IsRestore ? "Backup öffnen"
+        : IsSameStorage ? "Speichern"
+        : IsSwitching ? "Zum neuen Speicher wechseln"
+        : "Backup starten";
 
     /// <summary>Where the backup is stored. Imagepixel Storage is the recommended choice and preselected.</summary>
     [ObservableProperty]
@@ -234,6 +287,7 @@ public partial class SetupViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(DestinationHint));
         OnPropertyChanged(nameof(HasDestinationHint));
+        NotifyStorageChange();
     }
 
     // The setup code is all the customer enters for Imagepixel Storage: it carries the bucket and both keys.
@@ -262,6 +316,7 @@ public partial class SetupViewModel : ViewModelBase
         }
 
         OnPropertyChanged(nameof(HasCodeProblem));
+        NotifyStorageChange();
         Search = LookForBackupsAsync();
     }
 
@@ -441,6 +496,15 @@ public partial class SetupViewModel : ViewModelBase
                 // straight to the saved states, which is what the customer came for
                 _main.ShowRestore();
                 return;
+            }
+
+            // what the customer took out of the list in step 1 is no longer backed up
+            if (IsSwitching)
+            {
+                foreach (var dropped in _manager.Config.Folders.Where(item => !Sources.Contains(item.Path, FolderRules.PathComparer)).ToList())
+                {
+                    _manager.RemoveFolder(dropped);
+                }
             }
 
             foreach (var source in Sources)

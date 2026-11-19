@@ -84,6 +84,32 @@ public sealed class DestinationTests : IDisposable
     }
 
     [SkippableFact]
+    public async Task Connecting_the_same_storage_again_changes_nothing_for_the_folders()
+    {
+        Skip.If(_restic is null, "restic has not been built");
+        var (manager, documents, photos) = await SetUpAsync();
+        await manager.ChangeDestinationAsync(photos, "Bilder", deleteOldAfterDays: 30);
+        var success = documents.LastSuccess;
+
+        // the same folder on the disk, with another destination for folders added from now on
+        var again = new StorageSettings { Kind = StorageKind.LocalFolder, LocalPath = Disk + Path.DirectorySeparatorChar, Folder = "Neu" };
+        Assert.Equal(RepositoryState.Ready, await manager.ConnectAsync(again, Password, null, createIfMissing: true));
+
+        Assert.Same(documents, manager.Config.Folders[0]);
+        Assert.Equal("", documents.Destination);
+        Assert.Equal(success, documents.LastSuccess);
+        Assert.Equal("Bilder", photos.Destination);
+        Assert.Single(manager.Config.Cleanups);
+        Assert.Equal("Neu", manager.DestinationOf(manager.AddFolder(Path.Combine(_root, "Neu hinzu"))));
+        Assert.True(BackupManager.IsSameStorage(
+            new StorageSettings { Kind = StorageKind.ImagepixelStorage, Bucket = "kunde", AccessKeyId = "ALT" },
+            new StorageSettings { Kind = StorageKind.ImagepixelStorage, Bucket = "kunde", AccessKeyId = "NEU", Folder = "Notebook" }));
+        Assert.False(BackupManager.IsSameStorage(
+            new StorageSettings { Kind = StorageKind.ImagepixelStorage, Bucket = "kunde" },
+            new StorageSettings { Kind = StorageKind.ImagepixelStorage, Bucket = "kunde", Region = "eu-central-1" }));
+    }
+
+    [SkippableFact]
     public async Task A_destination_whose_backup_has_another_password_is_refused()
     {
         Skip.If(_restic is null, "restic has not been built");

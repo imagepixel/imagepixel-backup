@@ -13,7 +13,7 @@
             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
                 <Image Source="/Assets/app-icon.png" Width="56" Height="56" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Classes="title" Text="Willkommen bei Imagepixel Backup" />
+                    <TextBlock Classes="title" Text="{Binding Title}" />
                     <TextBlock Classes="subtle" Text="{Binding Subtitle}" />
                 </StackPanel>
                 <Button Grid.Column="2" Content="Info" VerticalAlignment="Center" Command="{Binding ShowAboutCommand}" />
@@ -97,6 +97,10 @@
 
                     <TextBlock Classes="subtle" IsVisible="{Binding HasCloudSource}"
                                Text="{x:Static local:Texts.CloudHint}" />
+
+                    <!-- renewing or moving: the folders so far stay with their settings unless taken out here -->
+                    <TextBlock Classes="subtle" IsVisible="{Binding ShowKeptFoldersNote}" TextWrapping="Wrap"
+                               Text="{x:Static local:Texts.KeptFoldersNote}" />
                 </StackPanel>
             </Border>
 
@@ -187,6 +191,11 @@
                             <TextBlock Text="{Binding DestinationHint}" TextWrapping="Wrap" />
                         </Border>
                     </StackPanel>
+
+                    <!-- renewing or moving: what saving will do, said before it is done -->
+                    <Border Classes="warning" IsVisible="{Binding HasStorageChangeNote}" Margin="0,14,0,0">
+                        <TextBlock Text="{Binding StorageChangeNote}" TextWrapping="Wrap" />
+                    </Border>
                 </StackPanel>
             </Border>
 
