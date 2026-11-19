@@ -218,7 +218,9 @@ public static class FolderRules
 
     /// <summary>
     /// Whether a path restic recorded for a snapshot is the folder. restic writes the
-    /// path as it got it, on Windows sometimes in the form "/C/Users/...".
+    /// path as it got it, on Windows sometimes in the form "/C/Users/...". On macOS and
+    /// Linux it writes the real path where the way to the folder leads through a link,
+    /// as "/var" does on macOS, which is "/private/var".
     /// </summary>
     public static bool IsSameFolder(string recorded, string folder)
     {
@@ -230,7 +232,52 @@ public static class FolderRules
                 : key;
         }
 
-        return string.Equals(Key(recorded), Key(folder), PathComparison);
+        if (string.Equals(Key(recorded), Key(folder), PathComparison))
+        {
+            return true;
+        }
+
+        return !OperatingSystem.IsWindows()
+            && string.Equals(Key(RealPath(recorded)), Key(RealPath(folder)), PathComparison);
+    }
+
+    /// <summary>
+    /// The path with every link on the way to it followed, as the system resolves it.
+    /// A part that cannot be looked at is taken as it is.
+    /// </summary>
+    internal static string RealPath(string path)
+    {
+        string full;
+        try
+        {
+            full = Path.GetFullPath(path);
+        }
+        catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return path;
+        }
+
+        var root = Path.GetPathRoot(full) ?? "";
+        var current = root;
+        foreach (var part in full[root.Length..].Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var next = Path.Combine(current, part);
+            try
+            {
+                if (new DirectoryInfo(next).ResolveLinkTarget(returnFinalTarget: true) is { } target)
+                {
+                    next = target.FullName;
+                }
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                // taken as it is
+            }
+
+            current = next;
+        }
+
+        return current;
     }
 
     // "C:\Daten" must not match "C:\Daten alt", so both paths end with a separator

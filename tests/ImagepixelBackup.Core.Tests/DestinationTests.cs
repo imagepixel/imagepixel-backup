@@ -255,6 +255,23 @@ public sealed class DestinationTests : IDisposable
         Assert.Equal(expected, FolderRules.IsSameFolder(recorded, folder));
     }
 
+    [SkippableFact]
+    public void A_folder_reached_through_a_link_is_matched_with_its_real_path()
+    {
+        Skip.If(OperatingSystem.IsWindows(), "Windows needs special rights for links");
+
+        var real = Path.Combine(_root, "wirklich", "Dokumente");
+        Directory.CreateDirectory(real);
+        var link = Path.Combine(_root, "verknuepft");
+        Directory.CreateSymbolicLink(link, Path.Combine(_root, "wirklich"));
+
+        // restic records the real path, the application knows the folder by the way it was chosen
+        Assert.True(FolderRules.IsSameFolder(real, Path.Combine(link, "Dokumente")));
+        Assert.True(FolderRules.IsSameFolder(Path.Combine(link, "Dokumente"), real));
+        Assert.False(FolderRules.IsSameFolder(Path.Combine(_root, "wirklich"), Path.Combine(link, "Dokumente")));
+        Assert.Equal(real, FolderRules.RealPath(Path.Combine(link, "Dokumente")));
+    }
+
     [Fact]
     public void A_destination_on_a_disk_is_a_folder_inside_the_folder_of_the_backup()
     {
