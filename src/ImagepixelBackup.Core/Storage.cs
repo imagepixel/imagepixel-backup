@@ -245,7 +245,10 @@ public static class FolderRules
     /// The path with every link on the way to it followed, as the system resolves it.
     /// A part that cannot be looked at is taken as it is.
     /// </summary>
-    internal static string RealPath(string path)
+    internal static string RealPath(string path) => RealPath(path, 0);
+
+    // A link may point at a path that leads through links itself; a circle of links ends after some rounds.
+    private static string RealPath(string path, int depth)
     {
         string full;
         try
@@ -264,9 +267,9 @@ public static class FolderRules
             var next = Path.Combine(current, part);
             try
             {
-                if (new DirectoryInfo(next).ResolveLinkTarget(returnFinalTarget: true) is { } target)
+                if (depth < 32 && new DirectoryInfo(next).ResolveLinkTarget(returnFinalTarget: true) is { } target)
                 {
-                    next = target.FullName;
+                    next = RealPath(target.FullName, depth + 1);
                 }
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)

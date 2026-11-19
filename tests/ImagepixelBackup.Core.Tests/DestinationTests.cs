@@ -269,7 +269,10 @@ public sealed class DestinationTests : IDisposable
         Assert.True(FolderRules.IsSameFolder(real, Path.Combine(link, "Dokumente")));
         Assert.True(FolderRules.IsSameFolder(Path.Combine(link, "Dokumente"), real));
         Assert.False(FolderRules.IsSameFolder(Path.Combine(_root, "wirklich"), Path.Combine(link, "Dokumente")));
-        Assert.Equal(real, FolderRules.RealPath(Path.Combine(link, "Dokumente")));
+
+        // the temp folder may lie behind a link itself, as it does on macOS
+        Assert.Equal(FolderRules.RealPath(real), FolderRules.RealPath(Path.Combine(link, "Dokumente")));
+        Assert.DoesNotContain("verknuepft", FolderRules.RealPath(Path.Combine(link, "Dokumente")));
     }
 
     [Fact]
