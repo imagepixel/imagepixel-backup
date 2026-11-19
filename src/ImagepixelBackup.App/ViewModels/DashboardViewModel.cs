@@ -285,10 +285,21 @@ public partial class DashboardViewModel : ViewModelBase
 
     private async Task AddAndBackupAsync(string path)
     {
-        BackupFolder folder;
+        // a folder that is backed up already is simply backed up once more
+        if (_manager.FindFolder(path) is { } existing && Folders.FirstOrDefault(item => item.Folder == existing) is { } item)
+        {
+            if (existing.Schedule != ScheduleKind.Manual)
+            {
+                await item.BackupNowAsync();
+            }
+
+            return;
+        }
+
+        string full;
         try
         {
-            folder = _manager.AddFolder(path);
+            full = _manager.CheckNewFolder(path);
         }
         catch (FolderOverlapException e)
         {
@@ -296,6 +307,13 @@ public partial class DashboardViewModel : ViewModelBase
             return;
         }
 
+        // the destination comes first; the first backup starts once the customer has saved it
+        _main.ShowNewFolderDestination(full, FolderItemViewModel.DisplayName(full, CloudFolders));
+    }
+
+    /// <summary>Shows a folder that was just added with its destination, and returns its line.</summary>
+    public FolderItemViewModel ShowAddedFolder(BackupFolder folder)
+    {
         var item = Folders.FirstOrDefault(f => f.Folder == folder);
         if (item is null)
         {
@@ -303,11 +321,8 @@ public partial class DashboardViewModel : ViewModelBase
             Folders.Add(item);
         }
 
-        // a folder that was just chosen is backed up right away
-        if (folder.Schedule != ScheduleKind.Manual)
-        {
-            await item.BackupNowAsync();
-        }
+        RefreshDestinations();
+        return item;
     }
 
     private void RefreshAvailableCloudFolders()

@@ -201,6 +201,9 @@ public partial class MainViewModel : ViewModelBase
 
     public void ShowDestination(FolderItemViewModel folder) => CurrentPage = new DestinationViewModel(this, _manager, folder);
 
+    /// <summary>Shows the page of the destination for a folder that is about to be added.</summary>
+    public void ShowNewFolderDestination(string path, string name) => CurrentPage = new DestinationViewModel(this, _manager, path, name);
+
     /// <summary>Shows what the look through a folder suggests leaving out, for the customer to answer.</summary>
     public void ShowSuggestion(FolderItemViewModel folder)
     {

@@ -13,6 +13,9 @@ where every backup made before destinations existed lies. The same holds for a b
 a folder on a disk: a destination is a folder inside the folder of the backup.
 
 In the overview each folder names its destination and has a button "Ziel …" to change it.
+A folder added from the overview gets its destination first: the page "Ziel für …" comes
+before its first backup, with the destination of the storage suggested. The folder is
+only added, and backed up, once the customer saves there; going back adds nothing.
 
 ## What a bucket looks like
 

@@ -33,18 +33,19 @@ public partial class FolderItemViewModel : ViewModelBase
         Folder = folder;
         ScheduleIndex = (int)folder.Schedule;
         DailyTime = folder.DailyAt.ToTimeSpan();
-        var cloud = CloudFolderDetector.Containing(folder.Path, dashboard.CloudFolders);
-        IsCloudFolder = cloud is not null;
-
-        // the folder of a cloud service is shown under the name of the service
-        Name = cloud is not null && string.Equals(cloud.Path, folder.Path, FolderRules.PathComparison)
-            ? cloud.Name
-            : System.IO.Path.GetFileName(folder.Path) is { Length: > 0 } name ? name : folder.Path;
+        IsCloudFolder = CloudFolderDetector.Containing(folder.Path, dashboard.CloudFolders) is not null;
+        Name = DisplayName(folder.Path, dashboard.CloudFolders);
 
         RefreshStatus();
     }
 
     public BackupFolder Folder { get; }
+
+    /// <summary>The name a folder is shown under: the folder of a cloud service under the name of the service.</summary>
+    public static string DisplayName(string path, IReadOnlyList<CloudFolder> cloudFolders) =>
+        CloudFolderDetector.Containing(path, cloudFolders) is { } cloud && string.Equals(cloud.Path, path, FolderRules.PathComparison)
+            ? cloud.Name
+            : System.IO.Path.GetFileName(path) is { Length: > 0 } name ? name : path;
 
     /// <summary>Whether the folder belongs to a cloud service, which is explained below it.</summary>
     public bool IsCloudFolder { get; }

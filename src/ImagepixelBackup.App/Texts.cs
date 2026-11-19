@@ -355,6 +355,14 @@ public static class Texts
 
     public const string DestinationsFound = "In deinem Speicher gibt es diese Ziele:";
 
+    /// <summary>What the page of the destination says for a folder that is about to be added.</summary>
+    public const string NewFolderNote =
+        "Bevor der Ordner zum ersten Mal gesichert wird, legst du fest, in welchem Ordner deines Speichers seine Sicherungen liegen. "
+        + "Vorgeschlagen ist das Ziel, das du bei der Einrichtung angegeben hast. Ein Ordner, in dem noch nichts liegt, beginnt als neues Backup mit deinem Verschlüsselungs-Passwort.";
+
+    /// <summary>What the overview says once a folder was added.</summary>
+    public static string FolderAdded(string folder, string place) => $"„{folder}“ wird ab jetzt {place} gesichert.";
+
     /// <summary>The question about what becomes of the backups at the destination a folder leaves.</summary>
     public static string OldBackupsQuestion(string folder, string oldPlace) =>
         $"Was soll mit den bisherigen Sicherungen von „{folder}“ {oldPlace} passieren?";

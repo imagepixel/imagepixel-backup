@@ -625,9 +625,13 @@ public sealed class WalkthroughTests : IDisposable
 
         if (OffersCloudStorage)
         {
-            // a cloud folder is added with one click, backed up right away and explained
+            // a cloud folder is added with one click and its destination, backed up and explained
             await dashboard.AddCloudFolderCommand.ExecuteAsync(CloudStorage[2]);
+            var cloudPage = Assert.IsType<DestinationViewModel>(main.CurrentPage);
+            Assert.Equal("Ziel für „iCloud Drive“", cloudPage.Title);
+            await cloudPage.SaveCommand.ExecuteAsync(null);
             var cloudFolder = Assert.Single(dashboard.Folders);
+            await WaitUntilAsync(() => cloudFolder.Folder.LastSuccess is not null || cloudFolder.HasProblem);
             Assert.Equal(CloudStorage[2].Path, cloudFolder.Path);
             Assert.Equal("iCloud Drive", cloudFolder.Name);
             Assert.True(cloudFolder.IsCloudFolder);
@@ -1250,6 +1254,76 @@ public sealed class WalkthroughTests : IDisposable
         // a folder that backs up without trouble raises no alarm
         Assert.False(Texts.IsAccessProblem("Fatal: unable to save snapshot: some file is locked"));
         Assert.False(Texts.IsAccessProblem(null));
+
+        window.Close();
+        await main.ShutdownAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task A_new_folder_gets_its_destination_before_the_first_backup()
+    {
+        var restic = ResticClient.FindRestic();
+        Assert.SkipWhen(restic is null, "restic has not been built");
+
+        var photosFolder = Path.Combine(_root, "Fotos");
+        Directory.CreateDirectory(photosFolder);
+        File.WriteAllText(Path.Combine(photosFolder, "Urlaub.jpg"), "ein Bild");
+        var manager = new BackupManager(new ConfigStore(DataFolder), new MemorySecretStore(), restic!);
+        manager.AcceptTerms(Texts.TermsVersion);
+        await manager.ConnectAsync(
+            new StorageSettings { Kind = StorageKind.LocalFolder, LocalPath = StorageFolder, Folder = "Notebook" },
+            Password, null, createIfMissing: true);
+
+        var main = new MainViewModel(manager, []);
+        main.LoadStorageStatus = () => Task.FromResult<StorageStatus?>(null);
+        var window = new MainWindow { DataContext = main };
+        string? chosen = photosFolder;
+        main.PickFolder = _ => Task.FromResult(chosen);
+        window.Show();
+        var dashboard = Assert.IsType<DashboardViewModel>(main.CurrentPage);
+
+        // choosing a folder leads to its destination first; nothing is added or backed up yet
+        await dashboard.AddFolderCommand.ExecuteAsync(null);
+        var page = Assert.IsType<DestinationViewModel>(main.CurrentPage);
+        Assert.True(page.IsNew);
+        Assert.Equal("Ziel für „Fotos“", page.Title);
+        Assert.Equal("Notebook", page.Destination);
+        Assert.Equal("Vorschlag: Notebook", page.CurrentText);
+        Assert.Equal("Speichern und sichern", page.SaveText);
+        Assert.False(page.AsksAboutOldBackups);
+        Assert.Empty(manager.Config.Folders);
+        await page.Search;
+        Capture(window, "20-neuer-ordner-ziel");
+
+        // going back adds nothing
+        page.CancelCommand.Execute(null);
+        Assert.Same(dashboard, main.CurrentPage);
+        Assert.Empty(manager.Config.Folders);
+        Assert.True(dashboard.HasNoFolders);
+
+        // another destination, and no question about old backups, since there are none
+        await dashboard.AddFolderCommand.ExecuteAsync(null);
+        page = Assert.IsType<DestinationViewModel>(main.CurrentPage);
+        page.Destination = "Fotos";
+        Assert.False(page.AsksAboutOldBackups);
+        await page.SaveCommand.ExecuteAsync(null);
+        Assert.Null(page.ErrorMessage);
+        Assert.Same(dashboard, main.CurrentPage);
+
+        // only now the folder is there, with its destination, and its first backup lands there
+        var item = Assert.Single(dashboard.Folders);
+        Assert.Equal("Fotos", item.Folder.Destination);
+        Assert.Equal("Ziel: Ordner „Fotos“", item.DestinationText);
+        Assert.Contains("„Fotos“ wird ab jetzt im Ordner „Fotos“ gesichert", dashboard.StatusLine);
+        await WaitUntilAsync(() => item.Folder.LastSuccess is not null || item.HasProblem);
+        Assert.False(item.HasProblem, item.StatusText);
+        Assert.Single(await new ResticClient(restic!, new RepositoryAccess(Path.Combine(StorageFolder, "Fotos"), Password)).GetSnapshotsAsync());
+        Assert.Empty(manager.Config.Cleanups);
+
+        // choosing it once more backs it up again instead of asking for a destination
+        await dashboard.AddFolderCommand.ExecuteAsync(null);
+        Assert.Same(dashboard, main.CurrentPage);
+        Assert.Single(dashboard.Folders);
 
         window.Close();
         await main.ShutdownAsync();

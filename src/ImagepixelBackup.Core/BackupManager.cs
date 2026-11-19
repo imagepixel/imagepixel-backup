@@ -424,21 +424,68 @@ public sealed class BackupManager(
     /// <summary>Adds a folder to back up. Returns the existing entry if the folder was added before.</summary>
     public BackupFolder AddFolder(string path)
     {
-        var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
-        var existing = Config.Folders.FirstOrDefault(f => string.Equals(f.Path, full, FolderRules.PathComparison));
+        var full = CheckNewFolder(path);
+        var existing = FindFolder(full);
         if (existing is not null)
         {
             return existing;
         }
 
-        // a backup stored inside the folder it backs up would back up itself
+        var folder = new BackupFolder { Path = full };
+        Config.Folders.Add(folder);
+        Save();
+        return folder;
+    }
+
+    /// <summary>The folder that is backed up at a path, or null if it is not backed up.</summary>
+    public BackupFolder? FindFolder(string path)
+    {
+        var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+        return Config.Folders.FirstOrDefault(f => string.Equals(f.Path, full, FolderRules.PathComparison));
+    }
+
+    /// <summary>
+    /// Checks that a folder can be backed up and returns its full path. A backup stored
+    /// inside the folder it backs up would back up itself, so that is refused.
+    /// </summary>
+    public string CheckNewFolder(string path)
+    {
+        var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
         if (Config.Storage is { Kind: StorageKind.LocalFolder } storage && FolderRules.Overlap(full, storage.LocalPath))
         {
             throw new FolderOverlapException(full, storage.LocalPath);
         }
 
-        var folder = new BackupFolder { Path = full };
-        Config.Folders.Add(folder);
+        return full;
+    }
+
+    /// <summary>
+    /// Adds a folder to back up together with the destination in the storage its backups
+    /// go to. A destination that holds no backup yet is created with the password of the
+    /// application; one that holds a backup the password does not open is refused, and
+    /// nothing is added.
+    /// </summary>
+    public async Task<BackupFolder> AddFolderAsync(string path, string destination, CancellationToken cancellationToken = default)
+    {
+        var full = CheckNewFolder(path);
+        var normalized = StorageFolder.Normalize(destination);
+        if (StorageFolder.Check(normalized) != StorageFolderProblem.None)
+        {
+            throw new ArgumentException($"\"{destination}\" cannot be a destination.", nameof(destination));
+        }
+
+        var client = CreateClient(normalized);
+        switch (await client.ProbeAsync(cancellationToken))
+        {
+            case RepositoryState.NotFound:
+                await client.InitAsync(cancellationToken);
+                break;
+            case RepositoryState.WrongPassword:
+                throw new DestinationPasswordException(normalized);
+        }
+
+        var folder = AddFolder(full);
+        folder.Destination = normalized;
         Save();
         return folder;
     }

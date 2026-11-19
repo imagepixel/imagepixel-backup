@@ -110,6 +110,33 @@ public sealed class DestinationTests : IDisposable
     }
 
     [SkippableFact]
+    public async Task A_folder_is_added_together_with_its_destination()
+    {
+        Skip.If(_restic is null, "restic has not been built");
+        var (manager, _, _) = await SetUpAsync();
+        var music = Path.Combine(_root, "Musik");
+        Directory.CreateDirectory(music);
+
+        var folder = await manager.AddFolderAsync(music, " Musik/ ");
+
+        Assert.Equal("Musik", folder.Destination);
+        Assert.True(File.Exists(Path.Combine(Disk, "Musik", "config")));
+        Assert.Same(folder, manager.FindFolder(music + Path.DirectorySeparatorChar));
+        Assert.Equal("Musik", new ConfigStore(Path.Combine(_root, "settings")).Load().Folders.Single(f => f.Path == music).Destination);
+
+        // a destination with another password, or one that cannot be, adds nothing
+        await new ResticClient(_restic!, new RepositoryAccess(Path.Combine(Disk, "Fremd"), "ein-anderes-passwort")).InitAsync();
+        var other = Path.Combine(_root, "Anderes");
+        Directory.CreateDirectory(other);
+        await Assert.ThrowsAsync<DestinationPasswordException>(() => manager.AddFolderAsync(other, "Fremd"));
+        await Assert.ThrowsAsync<ArgumentException>(() => manager.AddFolderAsync(other, "data"));
+        Assert.Null(manager.FindFolder(other));
+
+        // nor does the folder that holds the backup
+        Assert.Throws<FolderOverlapException>(() => manager.CheckNewFolder(Path.GetDirectoryName(Disk)!));
+    }
+
+    [SkippableFact]
     public async Task A_destination_whose_backup_has_another_password_is_refused()
     {
         Skip.If(_restic is null, "restic has not been built");

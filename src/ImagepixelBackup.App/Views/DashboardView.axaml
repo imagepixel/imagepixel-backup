@@ -92,7 +92,7 @@
                     <StackPanel Spacing="6">
                         <TextBlock FontWeight="Medium" Text="Noch wird nichts gesichert." />
                         <TextBlock Classes="subtle"
-                                   Text="Wähle einen Ordner aus, zum Beispiel deine Dokumente. Er wird sofort gesichert und danach automatisch jede Stunde im Hintergrund." />
+                                   Text="Wähle einen Ordner aus, zum Beispiel deine Dokumente, und sein Ziel im Speicher. Danach wird er gesichert und von da an automatisch jede Stunde im Hintergrund." />
                     </StackPanel>
                 </Border>
 
