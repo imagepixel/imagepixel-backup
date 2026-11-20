@@ -2,7 +2,9 @@ namespace ImagepixelBackup.Core;
 
 /// <summary>
 /// Looks into an Imagepixel Storage for the backups it holds. A backup lies either
-/// directly in the bucket or in a folder at its top, see <see cref="StorageSettings.Folder"/>.
+/// directly in the bucket or in a folder at its top, see <see cref="StorageSettings.Folder"/>;
+/// for a computer paired with the customer portal, in its own folder of the bucket
+/// or a folder inside that (<see cref="StorageSettings.Root"/>).
 /// Knowing them, the application can offer the folders instead of asking the customer
 /// to remember how one was spelled.
 /// </summary>
@@ -36,15 +38,19 @@ public sealed class BackupFinder(HttpClient http)
 
         try
         {
+            // a computer paired with the customer portal only reaches its own folder of the bucket
+            var top = storage.PathOf("");
+            var prefix = top.Length > 0 ? top + "/" : "";
+
             var client = S3Client.For(http, storage, secretAccessKey);
             var found = new List<string>();
-            if (await client.GetObjectAsync(Marker, cancellationToken) is not null)
+            if (await client.GetObjectAsync(prefix + Marker, cancellationToken) is not null)
             {
                 found.Add("");
             }
 
             var looked = 0;
-            await foreach (var folder in client.ListFoldersAsync(cancellationToken))
+            await foreach (var folder in client.ListFoldersAsync(prefix, cancellationToken))
             {
                 // what the storage itself keeps at its top is no backup of its own
                 if (StorageFolder.Check(folder) != StorageFolderProblem.None)
@@ -57,7 +63,7 @@ public sealed class BackupFinder(HttpClient http)
                     break;
                 }
 
-                if (await client.GetObjectAsync($"{folder}/{Marker}", cancellationToken) is not null)
+                if (await client.GetObjectAsync($"{prefix}{folder}/{Marker}", cancellationToken) is not null)
                 {
                     found.Add(folder);
                 }

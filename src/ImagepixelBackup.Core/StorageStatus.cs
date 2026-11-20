@@ -142,7 +142,7 @@ public sealed class StorageStatusService(HttpClient http)
             // just run shows at once. The file's figure stays if it is the larger one,
             // because it may count storage this computer cannot see.
             var status = fromFile.ToStatus(StorageStatusSource.StatusFile);
-            if (await MeasureAsync(client, cancellationToken) is { } measured && measured > status.UsedBytes)
+            if (await MeasureAsync(client, storage, cancellationToken) is { } measured && measured > status.UsedBytes)
             {
                 status = status with { UsedBytes = measured, MeasuredAt = DateTimeOffset.UtcNow };
             }
@@ -160,15 +160,17 @@ public sealed class StorageStatusService(HttpClient http)
     }
 
     /// <summary>
-    /// Adds up what lies in the bucket, without what Imagepixel itself keeps there.
-    /// Returns null if the bucket cannot be listed.
+    /// Adds up what lies in the bucket, without what Imagepixel itself keeps there; for
+    /// a computer paired with the customer portal, what lies in its own folder of the
+    /// bucket, the only part it can list. Returns null if the bucket cannot be listed.
     /// </summary>
-    private static async Task<long?> MeasureAsync(S3Client client, CancellationToken cancellationToken)
+    private static async Task<long?> MeasureAsync(S3Client client, StorageSettings storage, CancellationToken cancellationToken)
     {
         try
         {
+            var prefix = storage.PathOf("") is { Length: > 0 } root ? root + "/" : "";
             long used = 0;
-            await foreach (var (key, size) in client.ListObjectsAsync(cancellationToken: cancellationToken))
+            await foreach (var (key, size) in client.ListObjectsAsync(prefix, cancellationToken))
             {
                 if (!key.StartsWith("imagepixel/", StringComparison.Ordinal))
                 {

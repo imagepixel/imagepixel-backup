@@ -57,12 +57,34 @@ public sealed class StorageSettings
     /// </summary>
     public string Folder { get; set; } = "";
 
+    /// <summary>
+    /// The part of the bucket the access data is limited to, for <see cref="StorageKind.ImagepixelStorage"/>:
+    /// the folder of a computer that was paired with the customer portal, in the form
+    /// <see cref="StorageFolder.Normalize"/> gives it. Every destination, <see cref="Folder"/>
+    /// included, lies inside it. Empty for access data that reach the whole bucket, as
+    /// those of a setup code do.
+    /// </summary>
+    public string Root { get; set; } = "";
+
+    /// <summary>The name this computer was given in the customer portal when it was paired there, or empty.</summary>
+    public string DeviceName { get; set; } = "";
+
+    /// <summary>The number the customer portal knows this computer by, or empty if it was not paired there.</summary>
+    public string DeviceId { get; set; } = "";
+
     public bool IsS3 => Kind == StorageKind.ImagepixelStorage;
 
     /// <summary>The repository location in the syntax restic expects.</summary>
     public string RepositoryUrl => IsS3
-        ? $"s3:https://{ImagepixelStorage.Endpoint(Region)}/{Bucket}" + (Folder.Length > 0 ? "/" + Folder : "")
+        ? $"s3:https://{ImagepixelStorage.Endpoint(Region)}/{Bucket}" + (PathOf(Folder) is { Length: > 0 } path ? "/" + path : "")
         : Folder.Length > 0 ? Path.Combine(LocalPath, Folder.Replace('/', Path.DirectorySeparatorChar)) : LocalPath;
+
+    /// <summary>
+    /// Where a destination lies inside the bucket: below <see cref="Root"/>, with forward
+    /// slashes and none at the ends. Empty for the top of the bucket.
+    /// </summary>
+    public string PathOf(string destination) =>
+        string.Join('/', new[] { IsS3 ? Root : "", destination }.Where(part => part.Length > 0));
 
     /// <summary>The same storage with the same access, but another folder inside it.</summary>
     public StorageSettings WithFolder(string folder) => new()
@@ -73,6 +95,9 @@ public sealed class StorageSettings
         AccessKeyId = AccessKeyId,
         LocalPath = LocalPath,
         ApiUrl = ApiUrl,
+        Root = Root,
+        DeviceName = DeviceName,
+        DeviceId = DeviceId,
         Folder = folder,
     };
 }

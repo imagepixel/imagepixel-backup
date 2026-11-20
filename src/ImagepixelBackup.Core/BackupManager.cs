@@ -316,7 +316,7 @@ public sealed class BackupManager(
         if (storage.IsS3)
         {
             var client = S3Client.For(_http, storage, secrets.Get(SecretNames.SecretAccessKey) ?? "");
-            var prefix = destination.Length > 0 ? destination + "/" : "";
+            var prefix = storage.PathOf(destination) is { Length: > 0 } path ? path + "/" : "";
             foreach (var folder in RepositoryFolders)
             {
                 var keys = new List<string>();
@@ -354,6 +354,7 @@ public sealed class BackupManager(
 
     /// <summary>
     /// Whether two settings describe the same storage: the same bucket in the same region,
+    /// and in it the same part that the access data are limited to (<see cref="StorageSettings.Root"/>),
     /// or the same folder on a disk. The access key and the destination may differ.
     /// </summary>
     public static bool IsSameStorage(StorageSettings first, StorageSettings second)
@@ -365,7 +366,7 @@ public sealed class BackupManager(
 
         if (first.IsS3)
         {
-            return first.Bucket == second.Bucket && first.Region == second.Region;
+            return first.Bucket == second.Bucket && first.Region == second.Region && first.Root == second.Root;
         }
 
         try

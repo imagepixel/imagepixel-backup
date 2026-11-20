@@ -20,6 +20,9 @@ public static class SecretNames
     public const string RepositoryPassword = "repository-password";
     public const string SecretAccessKey = "secret-access-key";
     public const string ApiToken = "api-token";
+
+    /// <summary>A pairing with the customer portal that is under way, see <see cref="DevicePairing"/>.</summary>
+    public const string DevicePairing = "device-pairing";
 }
 
 public static class SecretStore

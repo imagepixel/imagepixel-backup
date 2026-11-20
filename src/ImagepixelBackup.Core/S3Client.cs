@@ -81,18 +81,22 @@ public sealed class S3Client(
     }
 
     /// <summary>
-    /// Lists the folders at the top of the bucket: what the keys there start with up to
-    /// their first slash. The names come without the slash.
+    /// Lists the folders at the top of the bucket, or inside the folder <paramref name="prefix"/>
+    /// names with a slash at its end: what the keys there start with up to the next slash.
+    /// The names come without the prefix and without the slash.
     /// </summary>
     public async IAsyncEnumerable<string> ListFoldersAsync(
+        string prefix = "",
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        await foreach (var page in ListPagesAsync("", "/", cancellationToken))
+        await foreach (var page in ListPagesAsync(prefix, "/", cancellationToken))
         {
             var ns = page.Name.Namespace;
             foreach (var item in page.Elements(ns + "CommonPrefixes"))
             {
-                if (item.Element(ns + "Prefix")?.Value.TrimEnd('/') is { Length: > 0 } name)
+                if (item.Element(ns + "Prefix")?.Value is { } full
+                    && full.StartsWith(prefix, StringComparison.Ordinal)
+                    && full[prefix.Length..].TrimEnd('/') is { Length: > 0 } name)
                 {
                     yield return name;
                 }

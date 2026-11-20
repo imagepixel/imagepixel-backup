@@ -70,11 +70,12 @@ public static class EncryptedView
         string mountpoint,
         string volumeName)
     {
-        var path = storage.Bucket + (destination.Length > 0 ? "/" + destination : "");
+        var inside = storage.PathOf(destination);
+        var path = storage.Bucket + (inside.Length > 0 ? "/" + inside : "");
         List<string> arguments = ["mount", $"{Remote}:{path}", mountpoint];
 
         // the figures Imagepixel keeps at the top of the bucket are not part of the backup
-        if (destination.Length == 0)
+        if (inside.Length == 0)
         {
             arguments.AddRange(["--exclude", "/imagepixel/**"]);
         }
