@@ -13,6 +13,11 @@ then on. Your data is encrypted on your computer before it leaves it.
   click
 - Back up every hour, every day at a set time, or only on demand
 - Store the backup in Imagepixel Storage, or in a folder such as a USB drive
+- Connect to Imagepixel Storage with a setup code, or by
+  [pairing the computer with the customer portal](docs/device-pairing.md): the
+  application shows a code, the customer enters it in the portal, and the computer gets
+  access data of its own, encrypted on the way for it alone and limited to its own folder
+  in the storage
 - Give each folder its own [destination](docs/storage-folders.md) inside the storage, so
   that several computers share one storage without their backups getting mixed up, and
   change it later. The backups at the previous destination are kept, or deleted after 7,
@@ -112,6 +117,9 @@ dotnet test
 
 # builds artifacts\installer\ImagepixelBackup-Setup-<version>.exe
 .\build-installer.ps1
+
+# the same, offering pairing with the customer portal named in the file
+.\build-installer.ps1 -PortalSettings <path>\portal.json
 ```
 
 The setup program brings everything a computer needs: the application with the .NET
@@ -189,12 +197,12 @@ interface without showing a window. Pictures of every screen are saved to
 
 | Path | Content |
 |---|---|
-| `src/ImagepixelBackup.Core` | Runs restic, stores settings and secrets, schedules backups, reads the storage status |
+| `src/ImagepixelBackup.Core` | Runs restic, stores settings and secrets, schedules backups, reads the storage status, pairs with the customer portal |
 | `src/ImagepixelBackup.App` | The desktop application (Avalonia) |
 | `tools/ImagepixelBackup.Admin` | `ipb-admin`: creates setup codes and writes the storage status file |
 | `restic-overlay` | Files added to restic so that it can mount repositories on Windows |
 | `installer` | The script of the setup program for Windows, and what the disk image for macOS and the packages for Linux are made of |
-| `docs` | [How the application learns how much storage is booked and used](docs/storage-status.md) |
+| `docs` | [How the application learns how much storage is booked and used](docs/storage-status.md), [destinations in a storage](docs/storage-folders.md), [pairing with the customer portal](docs/device-pairing.md) |
 | `tests` | Tests for the core and a walkthrough of the user interface |
 
 ## Opening a backup as a drive

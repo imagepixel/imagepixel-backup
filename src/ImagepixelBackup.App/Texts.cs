@@ -186,13 +186,16 @@ public static class Texts
     public const string ChangeStorage = "Einrichtungscode oder Speicher ändern";
 
     /// <summary>What the info page says about it.</summary>
-    public const string ChangeStorageHint =
+    public static string ChangeStorageHint(bool canPair) =>
         "Das brauchst du nur, wenn du von Imagepixel einen neuen Einrichtungscode bekommen hast, zum Beispiel nach einem Tausch der Zugangsdaten, "
+        + (canPair ? "wenn du diesen Rechner mit dem Kundenportal koppeln möchtest, " : "")
         + "oder wenn deine Sicherungen künftig an einem anderen Ort liegen sollen. Deine gesicherten Ordner und ihre Einstellungen bleiben dabei erhalten.";
 
     /// <summary>What the setup says when the customer came to renew the access data or move to another storage.</summary>
-    public static string SwitchNote(string storage) =>
-        $"Du bist mit „{storage}“ verbunden. Hier gibst du einen neuen Einrichtungscode ein, den du von Imagepixel bekommen hast, "
+    public static string SwitchNote(string storage, bool canPair) =>
+        $"Du bist mit „{storage}“ verbunden. Hier "
+        + (canPair ? "koppelst du diesen Rechner mit dem Kundenportal, gibst einen neuen Einrichtungscode ein, den du von Imagepixel bekommen hast, "
+                   : "gibst du einen neuen Einrichtungscode ein, den du von Imagepixel bekommen hast, ")
         + "oder richtest einen anderen Speicher ein. Solange du nichts speicherst, bleibt alles, wie es ist, und deine Sicherungen laufen weiter.";
 
     /// <summary>What step 1 says about the folders that are backed up already.</summary>
@@ -260,6 +263,63 @@ public static class Texts
         "Das ist kein gültiger Einrichtungscode. Bitte füge ihn vollständig ein, so wie du ihn von Imagepixel bekommen hast.";
 
     public const string SetupCodeMissing = "Bitte füge den Einrichtungscode ein, den du von Imagepixel bekommen hast.";
+
+    public const string PairingWay = "Mit dem Kundenportal koppeln";
+
+    public const string PairingWayHint = "Du gibst im Kundenportal einen Code ein, und dieser Rechner bekommt eigene Zugangsdaten.";
+
+    public const string SetupCodeWay = "Einrichtungscode eingeben";
+
+    public const string SetupCodeWayHint = "Den Code hast du von Imagepixel in einer Nachricht bekommen.";
+
+    /// <summary>What the setup says before a code for the pairing is asked for.</summary>
+    public const string PairingIntro =
+        "Das Programm zeigt dir gleich einen Code. Melde dich im Kundenportal von Imagepixel an, wähle „Zugang für ein Gerät anlegen“ "
+        + "und gib dort den Code und einen Namen für diesen Rechner ein. Die Zugangsdaten kommen dann verschlüsselt auf diesen Rechner, "
+        + "und nur er kann sie öffnen.";
+
+    public const string PairingRequestCode = "Code anzeigen";
+
+    public const string PairingRequestNewCode = "Neuen Code anfordern";
+
+    public const string PairingRequesting = "Code wird angefordert …";
+
+    /// <summary>What is said under the code while it waits to be entered in the portal.</summary>
+    public static string PairingCodeHint(DateTimeOffset validUntil) =>
+        "Gib diesen Code im Kundenportal unter „Zugang für ein Gerät anlegen“ ein, zusammen mit einem Namen für diesen Rechner. "
+        + $"Der Code gilt bis {validUntil.ToLocalTime().ToString("HH:mm", German)} Uhr.";
+
+    public const string PairingWaiting = "Wartet auf die Eingabe im Kundenportal …";
+
+    public const string PairingInProgress =
+        "Der Code wurde im Kundenportal eingegeben. Imagepixel richtet jetzt die Zugangsdaten für diesen Rechner ein. "
+        + "Das kann ein paar Minuten dauern …";
+
+    /// <summary>What the setup says once the access data have arrived.</summary>
+    public static string PairingDone(string deviceName) => deviceName.Length > 0
+        ? $"Gekoppelt: Dieser Rechner ist im Kundenportal als „{deviceName}“ eingetragen und hat eigene Zugangsdaten bekommen."
+        : "Gekoppelt: Dieser Rechner hat eigene Zugangsdaten bekommen.";
+
+    public const string PairingDoneNext = "Gib jetzt unten dein Verschlüsselungs-Passwort ein, dann kann das Backup starten.";
+
+    /// <summary>Why the pairing cannot go on: the sentence of the portal, or a reason that lies with this computer.</summary>
+    public static string PairingFailed(string? message) =>
+        (string.IsNullOrWhiteSpace(message)
+            ? "Die Zugangsdaten aus dem Kundenportal ließen sich auf diesem Rechner nicht öffnen."
+            : message.Trim())
+        + " Du kannst einen neuen Code anfordern.";
+
+    public const string PairingExpired = "Der Code ist abgelaufen, bevor er im Kundenportal eingegeben wurde. Fordere einfach einen neuen an.";
+
+    public const string PairingUnreachable = "Das Kundenportal ist gerade nicht erreichbar. Das Programm versucht es weiter.";
+
+    /// <summary>Why no code could be asked for.</summary>
+    public static string PairingStartFailed(Exception error) => error is PortalException { IsForTheCustomer: true } portal
+        ? portal.Message
+        : "Das Kundenportal ist gerade nicht erreichbar. Bitte versuche es gleich noch einmal.";
+
+    public const string PairingMissing =
+        "Bitte kopple diesen Rechner zuerst mit dem Kundenportal: Fordere einen Code an und gib ihn dort ein. Oder gib einen Einrichtungscode ein.";
 
     /// <summary>How the overview names what a folder leaves out, for example "Ausnahmen: 3 Regeln".</summary>
     public static string Exclusions(int count) => count == 1 ? "Ausnahmen: 1 Regel" : $"Ausnahmen: {count} Regeln";
@@ -418,6 +478,7 @@ public static class Texts
 
     public static string StorageName(StorageSettings storage) => storage.Kind switch
     {
+        StorageKind.ImagepixelStorage when storage.DeviceName.Length > 0 => $"Imagepixel Storage · {storage.Bucket} · {storage.DeviceName}",
         StorageKind.ImagepixelStorage => $"Imagepixel Storage · {storage.Bucket}",
         _ => $"Ordner · {storage.LocalPath}",
     };

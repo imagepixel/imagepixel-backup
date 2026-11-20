@@ -134,8 +134,61 @@
                         </Button>
                     </Grid>
 
-                    <!-- Imagepixel Storage: everything in this block was handed out by Imagepixel -->
-                    <StackPanel IsVisible="{Binding ShowImagepixelFields}">
+                    <!-- Imagepixel Storage: two ways to the access data where the customer portal is set up -->
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10" Margin="0,14,0,0" IsVisible="{Binding ShowAccessChoice}">
+                        <Button Classes="tile" Classes.selected="{Binding UsesPairing}"
+                                Command="{Binding ChooseAccessWayCommand}" CommandParameter="Pairing">
+                            <StackPanel Spacing="4">
+                                <TextBlock FontWeight="SemiBold" Text="{x:Static local:Texts.PairingWay}" />
+                                <TextBlock Classes="subtle" Text="{x:Static local:Texts.PairingWayHint}" />
+                            </StackPanel>
+                        </Button>
+                        <Button Grid.Column="1" Classes="tile" Classes.selected="{Binding UsesSetupCode}"
+                                Command="{Binding ChooseAccessWayCommand}" CommandParameter="SetupCode">
+                            <StackPanel Spacing="4">
+                                <TextBlock FontWeight="SemiBold" Text="{x:Static local:Texts.SetupCodeWay}" />
+                                <TextBlock Classes="subtle" Text="{x:Static local:Texts.SetupCodeWayHint}" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+
+                    <!-- pairing: a code to enter in the portal, then the access data arrive encrypted for this computer -->
+                    <StackPanel IsVisible="{Binding ShowPairingFields}" Spacing="10" Margin="0,14,0,0">
+                        <Border Classes="note" IsVisible="{Binding ShowPairingIntro}">
+                            <TextBlock Text="{x:Static local:Texts.PairingIntro}" TextWrapping="Wrap" />
+                        </Border>
+
+                        <Border Classes="note" IsVisible="{Binding ShowPairingCode}" Padding="18,16">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="{Binding PairingCode}" FontSize="40" FontWeight="SemiBold" LetterSpacing="4"
+                                           HorizontalAlignment="Center" />
+                                <TextBlock Text="{Binding PairingCodeHint}" TextWrapping="Wrap" HorizontalAlignment="Center"
+                                           TextAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding IsPairingPending}">
+                            <ProgressBar IsIndeterminate="True" Width="80" VerticalAlignment="Center" />
+                            <TextBlock Classes="subtle" Text="{Binding PairingStatusText}" TextWrapping="Wrap" MaxWidth="520"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+
+                        <StackPanel IsVisible="{Binding IsPairingDone}" Spacing="4">
+                            <TextBlock Text="{Binding PairingDoneText}" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SuccessTextBrush}" />
+                            <TextBlock Classes="subtle" Text="{x:Static local:Texts.PairingDoneNext}" TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding PairingProblem}" TextWrapping="Wrap" IsVisible="{Binding HasPairingProblem}"
+                                   Foreground="{DynamicResource ProblemTextBrush}" />
+
+                        <Button Classes="accent" Content="{Binding PairingRequestText}" Padding="20,9"
+                                IsVisible="{Binding ShowPairingIntro}" IsEnabled="{Binding CanRequestPairingCode}"
+                                Command="{Binding RequestPairingCodeCommand}" />
+                    </StackPanel>
+
+                    <!-- the setup code: everything in this block was handed out by Imagepixel -->
+                    <StackPanel IsVisible="{Binding ShowSetupCodeFields}">
                         <Border Classes="note" Margin="0,14,0,0">
                             <StackPanel Spacing="3">
                                 <TextBlock FontWeight="SemiBold" Text="Diesen Code bekommst du von Imagepixel" />

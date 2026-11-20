@@ -31,7 +31,7 @@
             <Border Classes="card" IsVisible="{Binding CanChangeStorage}">
                 <StackPanel Spacing="8">
                     <TextBlock Classes="heading" Text="{x:Static local:Texts.ChangeStorage}" />
-                    <TextBlock Classes="subtle" Text="{x:Static local:Texts.ChangeStorageHint}" />
+                    <TextBlock Classes="subtle" Text="{Binding ChangeStorageHint}" />
                     <Button Content="{x:Static local:Texts.ChangeStorage}" Command="{Binding ChangeStorageCommand}" />
                 </StackPanel>
             </Border>

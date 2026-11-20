@@ -20,9 +20,14 @@ public partial class MainViewModel : ViewModelBase
     /// <param name="cloudFolders">
     /// The cloud folders to offer as a source. Looked up on this computer when omitted.
     /// </param>
-    public MainViewModel(BackupManager manager, IReadOnlyList<CloudFolder>? cloudFolders = null)
+    /// <param name="pairing">
+    /// Pairing with the customer portal, or null where the portal is not set up: then
+    /// only the setup code leads to Imagepixel Storage.
+    /// </param>
+    public MainViewModel(BackupManager manager, IReadOnlyList<CloudFolder>? cloudFolders = null, DevicePairing? pairing = null)
     {
         _manager = manager;
+        Pairing = pairing;
         LoadStorageStatus = () => manager.GetStorageStatusAsync();
         FindBackupFolders = (storage, secret) => manager.FindBackupFoldersAsync(storage, secret);
         CloudFolders = cloudFolders ?? CloudFolderDetector.Detect();
@@ -59,6 +64,12 @@ public partial class MainViewModel : ViewModelBase
 
     /// <summary>The folders of cloud storage services found on this computer.</summary>
     public IReadOnlyList<CloudFolder> CloudFolders { get; }
+
+    /// <summary>Pairing this computer with the customer portal, or null where the portal is not set up.</summary>
+    public DevicePairing? Pairing { get; }
+
+    /// <summary>How often the portal is asked while a pairing waits. Replaceable for tests.</summary>
+    public TimeSpan PairingInterval { get; set; } = TimeSpan.FromSeconds(6);
 
     /// <summary>Lets the user choose a folder. Set by the window, which owns the dialog.</summary>
     public Func<string, Task<string?>> PickFolder { get; set; } = _ => Task.FromResult<string?>(null);

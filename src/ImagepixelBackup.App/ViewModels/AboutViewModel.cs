@@ -36,6 +36,8 @@ public partial class AboutViewModel : ViewModelBase
     /// <summary>A setup code or storage can only be changed once one is set up.</summary>
     public bool CanChangeStorage => _main.HasStorage;
 
+    public string ChangeStorageHint => Texts.ChangeStorageHint(_main.Pairing is not null);
+
     [RelayCommand]
     private void ChangeStorage() => _main.ShowStorageChange();
 

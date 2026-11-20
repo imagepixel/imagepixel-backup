@@ -8,9 +8,15 @@
     artifacts\installer\ImagepixelBackup-Setup-<version>.exe.
 
     Requirements: Git, Go, the .NET 10 SDK and Inno Setup 6.
+
+.PARAMETER PortalSettings
+    A portal.json with the address and the public key of the customer portal, put next
+    to the program so that the setup offers pairing with the portal (docs\device-pairing.md).
+    Without it the setup offers the setup code only.
 #>
 [CmdletBinding()]
 param(
+    [string]$PortalSettings,
     [string]$WinFspVersion = 'v2.1',
     [string]$WinFspMsi = 'winfsp-2.1.25156.msi',
     [string]$WinFspSha256 = '073a70e00f77423e34bed98b86e600def93393ba5822204fac57a29324db9f7a'
@@ -79,6 +85,15 @@ Write-Host 'Publishing the application ...'
 Invoke-Checked dotnet @('publish', $project, '--configuration', 'Release', '--runtime', 'win-x64',
     '--self-contained', 'true', '-p:DebugType=none', '-p:DebugSymbols=false',
     '--output', $publish, '--nologo', '--verbosity', 'quiet')
+
+if ($PortalSettings) {
+    $portal = Get-Content $PortalSettings -Raw | ConvertFrom-Json
+    if (-not ($portal.url -like 'https://*') -or -not $portal.apiKey) {
+        throw "$PortalSettings must name an address starting with https:// and a key"
+    }
+    Copy-Item $PortalSettings (Join-Path $publish 'portal.json')
+    Write-Host 'The setup offers pairing with the customer portal.'
+}
 
 $version = ([xml](Get-Content $project)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
 if (-not $version) {
