@@ -258,5 +258,10 @@ public partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>Stops everything that runs in the background before the application exits.</summary>
-    public Task ShutdownAsync() => _dashboard?.ShutdownAsync() ?? Task.CompletedTask;
+    public Task ShutdownAsync()
+    {
+        // a pairing under way is kept and goes on at the next start
+        (CurrentPage as SetupViewModel)?.StopWatchingPairing();
+        return _dashboard?.ShutdownAsync() ?? Task.CompletedTask;
+    }
 }

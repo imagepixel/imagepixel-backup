@@ -157,9 +157,12 @@ public partial class SetupViewModel : ViewModelBase
     private void Back()
     {
         // a pairing under way is kept and goes on when the setup is opened again
-        _pairingRun++;
+        StopWatchingPairing();
         _main.ShowDashboard();
     }
+
+    /// <summary>Stops asking the portal, as when the application exits. The pairing is kept and goes on when the setup opens again.</summary>
+    public void StopWatchingPairing() => _pairingRun++;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(
@@ -415,8 +418,11 @@ public partial class SetupViewModel : ViewModelBase
     }
 
     // Asks the portal again and again while the pairing waits, until another run takes over.
+    // It begins only after the page has been made, so that nothing is asked from within the
+    // constructor and the interval set right after it applies from the start.
     private async Task WatchPairingAsync(int run, bool checkAtOnce)
     {
+        await Task.Yield();
         var first = true;
         while (run == _pairingRun && IsPairingPending)
         {

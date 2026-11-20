@@ -239,11 +239,19 @@ public sealed class PairingWalkthroughTests : IDisposable
         await Until(() => setup.PairingStage == PairingStage.InProgress);
         Assert.True(portal.Fetched > asked);
 
-        // the application ends and starts again: the same pairing goes on
+        // the application ends and its page stops asking the portal
+        var before = setup;
         await main.ShutdownAsync();
+        await Until(() => before.PairingWatch.IsCompleted);
+        var fetched = portal.Fetched;
+
+        // it starts again: the same pairing goes on
         (main, _) = Start(portal, secrets, TimeSpan.FromMilliseconds(20));
         setup = Assert.IsType<SetupViewModel>(main.CurrentPage);
         Assert.Equal("K7QM-4TZP", setup.PairingCode);
+
+        // nothing is asked from within the constructor, so that the interval set right after it applies
+        Assert.Equal(fetched, portal.Fetched);
         await Until(() => setup.PairingStage == PairingStage.InProgress);
 
         portal.Stage = "fertig";
