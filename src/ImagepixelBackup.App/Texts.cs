@@ -321,6 +321,12 @@ public static class Texts
     public const string PairingMissing =
         "Bitte kopple diesen Rechner zuerst mit dem Kundenportal: Fordere einen Code an und gib ihn dort ein. Oder gib einen Einrichtungscode ein.";
 
+    /// <summary>
+    /// The title of the folder dialog when it opens again because the place chosen was no
+    /// folder on the disk, such as a library or "Dieser PC".
+    /// </summary>
+    public static string NotAFolder(string title) => $"Das war kein Ordner auf diesem Rechner. {title}";
+
     /// <summary>How the overview names what a folder leaves out, for example "Ausnahmen: 3 Regeln".</summary>
     public static string Exclusions(int count) => count == 1 ? "Ausnahmen: 1 Regel" : $"Ausnahmen: {count} Regeln";
 

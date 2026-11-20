@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
@@ -18,11 +19,13 @@ public partial class MainWindow : Window
         base.OnDataContextChanged(e);
         if (DataContext is MainViewModel viewModel)
         {
-            viewModel.PickFolder = PickFolderAsync;
+            viewModel.PickFolder = title => FolderPicking.PickAsync(OpenFolderPickerAsync, title);
         }
     }
 
-    private async Task<string?> PickFolderAsync(string title)
+    // The dialog of the system. A place without a folder on the disk behind it comes back
+    // as an exception, from Avalonia or from here, and FolderPicking asks again.
+    private async Task<string?> OpenFolderPickerAsync(string title)
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
@@ -30,6 +33,11 @@ public partial class MainWindow : Window
             AllowMultiple = false,
         });
 
-        return folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
+        if (folders.Count == 0)
+        {
+            return null;
+        }
+
+        return folders[0].TryGetLocalPath() ?? throw new DirectoryNotFoundException("The chosen place is no folder on the disk.");
     }
 }
