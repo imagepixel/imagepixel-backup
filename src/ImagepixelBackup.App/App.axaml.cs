@@ -37,17 +37,12 @@ public partial class App : Application
             // is closed, so that scheduled backups continue.
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
-            // one store for all secrets, so that writes of the pairing and of the backup never cross
-            var secrets = SecretStore.Create();
             var manager = new BackupManager(
                 new ConfigStore(),
-                secrets,
+                SecretStore.Create(),
                 ResticClient.FindRestic() ?? "restic");
 
-            // offered only where the address of the customer portal has been set up
-            var pairing = DevicePairing.Create(new System.Net.Http.HttpClient(), secrets, PortalSettings.Load());
-
-            _viewModel = new MainViewModel(manager, pairing: pairing);
+            _viewModel = new MainViewModel(manager);
             _viewModel.RefreshStartAtLogin();
             _window = new MainWindow { DataContext = _viewModel };
             _viewModel.HideWindow = () => _window.Hide();

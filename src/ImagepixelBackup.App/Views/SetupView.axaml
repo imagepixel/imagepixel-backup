@@ -115,9 +115,8 @@
                                 Command="{Binding ChooseKindCommand}" CommandParameter="ImagepixelStorage">
                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                 <StackPanel Spacing="4">
-                                    <TextBlock FontWeight="SemiBold" FontSize="15" Text="Imagepixel Storage" />
-                                    <TextBlock Classes="subtle"
-                                               Text="Sicherer Online-Speicher, mit den Zugangsdaten von Imagepixel" />
+                                    <TextBlock FontWeight="SemiBold" FontSize="15" Text="{x:Static local:Texts.OnlineStorage}" />
+                                    <TextBlock Classes="subtle" Text="{x:Static local:Texts.OnlineStorageHint}" />
                                 </StackPanel>
                                 <Border Grid.Column="1" Classes="badge" VerticalAlignment="Top"
                                         IsVisible="{Binding IsBackup}">
@@ -134,77 +133,67 @@
                         </Button>
                     </Grid>
 
-                    <!-- Imagepixel Storage: two ways to the access data where the customer portal is set up -->
-                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10" Margin="0,14,0,0" IsVisible="{Binding ShowAccessChoice}">
-                        <Button Classes="tile" Classes.selected="{Binding UsesPairing}"
-                                Command="{Binding ChooseAccessWayCommand}" CommandParameter="Pairing">
-                            <StackPanel Spacing="4">
-                                <TextBlock FontWeight="SemiBold" Text="{x:Static local:Texts.PairingWay}" />
-                                <TextBlock Classes="subtle" Text="{x:Static local:Texts.PairingWayHint}" />
-                            </StackPanel>
-                        </Button>
-                        <Button Grid.Column="1" Classes="tile" Classes.selected="{Binding UsesSetupCode}"
-                                Command="{Binding ChooseAccessWayCommand}" CommandParameter="SetupCode">
-                            <StackPanel Spacing="4">
-                                <TextBlock FontWeight="SemiBold" Text="{x:Static local:Texts.SetupCodeWay}" />
-                                <TextBlock Classes="subtle" Text="{x:Static local:Texts.SetupCodeWayHint}" />
-                            </StackPanel>
-                        </Button>
-                    </Grid>
+                    <!-- the online storage: the setup code of the administrator, or the access data of an own Wasabi account -->
+                    <StackPanel IsVisible="{Binding ShowImagepixelFields}">
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="10" Margin="0,14,0,0">
+                            <Button Classes="tile" Classes.selected="{Binding UsesSetupCode}"
+                                    Command="{Binding ChooseAccessWayCommand}" CommandParameter="SetupCode">
+                                <StackPanel Spacing="4">
+                                    <TextBlock FontWeight="SemiBold" Text="{x:Static local:Texts.SetupCodeWay}" />
+                                    <TextBlock Classes="subtle" Text="{x:Static local:Texts.SetupCodeWayHint}" />
+                                </StackPanel>
+                            </Button>
+                            <Button Grid.Column="1" Classes="tile" Classes.selected="{Binding UseOwnAccount}"
+                                    Command="{Binding ChooseAccessWayCommand}" CommandParameter="OwnAccount">
+                                <StackPanel Spacing="4">
+                                    <TextBlock FontWeight="SemiBold" Text="{x:Static local:Texts.OwnAccountWay}" />
+                                    <TextBlock Classes="subtle" Text="{x:Static local:Texts.OwnAccountWayHint}" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
 
-                    <!-- pairing: a code to enter in the portal, then the access data arrive encrypted for this computer -->
-                    <StackPanel IsVisible="{Binding ShowPairingFields}" Spacing="10" Margin="0,14,0,0">
-                        <Border Classes="note" IsVisible="{Binding ShowPairingIntro}">
-                            <TextBlock Text="{x:Static local:Texts.PairingIntro}" TextWrapping="Wrap" />
-                        </Border>
+                        <StackPanel IsVisible="{Binding ShowSetupCodeFields}">
+                            <Border Classes="note" Margin="0,14,0,0">
+                                <StackPanel Spacing="3">
+                                    <TextBlock FontWeight="SemiBold" Text="{x:Static local:Texts.SetupCodeNoteTitle}" />
+                                    <TextBlock Classes="subtle" Text="{x:Static local:Texts.SetupCodeNote}" />
+                                </StackPanel>
+                            </Border>
 
-                        <Border Classes="note" IsVisible="{Binding ShowPairingCode}" Padding="18,16">
-                            <StackPanel Spacing="10">
-                                <TextBlock Text="{Binding PairingCode}" FontSize="40" FontWeight="SemiBold" LetterSpacing="4"
-                                           HorizontalAlignment="Center" />
-                                <TextBlock Text="{Binding PairingCodeHint}" TextWrapping="Wrap" HorizontalAlignment="Center"
-                                           TextAlignment="Center" />
-                            </StackPanel>
-                        </Border>
-
-                        <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding IsPairingPending}">
-                            <ProgressBar IsIndeterminate="True" Width="80" VerticalAlignment="Center" />
-                            <TextBlock Classes="subtle" Text="{Binding PairingStatusText}" TextWrapping="Wrap" MaxWidth="520"
-                                       VerticalAlignment="Center" />
+                            <!-- the code carries the access keys, so it is shown as dots like a password -->
+                            <TextBlock Classes="label" Text="Einrichtungscode" />
+                            <TextBox Text="{Binding SetupCodeText}" PasswordChar="●"
+                                     PlaceholderText="IPB1-… (Einrichtungscode einfügen)" />
+                            <TextBlock Margin="0,6,0,0" Text="{Binding CodeAcceptedText}"
+                                       Foreground="{DynamicResource SuccessTextBrush}" IsVisible="{Binding CodeAccepted}" />
+                            <TextBlock Margin="0,6,0,0" Text="{x:Static local:Texts.SetupCodeProblem}" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource ProblemTextBrush}" IsVisible="{Binding HasCodeProblem}" />
                         </StackPanel>
 
-                        <StackPanel IsVisible="{Binding IsPairingDone}" Spacing="4">
-                            <TextBlock Text="{Binding PairingDoneText}" TextWrapping="Wrap"
-                                       Foreground="{DynamicResource SuccessTextBrush}" />
-                            <TextBlock Classes="subtle" Text="{x:Static local:Texts.PairingDoneNext}" TextWrapping="Wrap" />
+                        <!-- an own Wasabi account: what its console shows, typed in by hand -->
+                        <StackPanel IsVisible="{Binding ShowOwnAccountFields}">
+                            <Border Classes="note" Margin="0,14,0,0">
+                                <TextBlock Text="{x:Static local:Texts.OwnAccountNote}" TextWrapping="Wrap" />
+                            </Border>
+
+                            <Grid ColumnDefinitions="2*,*" ColumnSpacing="10">
+                                <StackPanel>
+                                    <TextBlock Classes="label" Text="Bucket" />
+                                    <TextBox Text="{Binding OwnBucket}" PlaceholderText="z. B. sicherung-buero" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Classes="label" Text="Region" />
+                                    <TextBox Text="{Binding OwnRegion}" PlaceholderText="eu-central-2" />
+                                </StackPanel>
+                            </Grid>
+
+                            <TextBlock Classes="label" Text="Zugangsschlüssel (Access Key)" />
+                            <TextBox Text="{Binding OwnAccessKeyId}" />
+
+                            <!-- the secret key is shown as dots like a password -->
+                            <TextBlock Classes="label" Text="Geheimer Schlüssel (Secret Key)" />
+                            <TextBox Text="{Binding OwnSecretAccessKey}" PasswordChar="●" />
                         </StackPanel>
-
-                        <TextBlock Text="{Binding PairingProblem}" TextWrapping="Wrap" IsVisible="{Binding HasPairingProblem}"
-                                   Foreground="{DynamicResource ProblemTextBrush}" />
-
-                        <Button Classes="accent" Content="{Binding PairingRequestText}" Padding="20,9"
-                                IsVisible="{Binding ShowPairingIntro}" IsEnabled="{Binding CanRequestPairingCode}"
-                                Command="{Binding RequestPairingCodeCommand}" />
-                    </StackPanel>
-
-                    <!-- the setup code: everything in this block was handed out by Imagepixel -->
-                    <StackPanel IsVisible="{Binding ShowSetupCodeFields}">
-                        <Border Classes="note" Margin="0,14,0,0">
-                            <StackPanel Spacing="3">
-                                <TextBlock FontWeight="SemiBold" Text="Diesen Code bekommst du von Imagepixel" />
-                                <TextBlock Classes="subtle"
-                                           Text="Er steht in der Nachricht, die du nach der Einrichtung deines Speichers erhalten hast. Mehr brauchst du für die Verbindung nicht." />
-                            </StackPanel>
-                        </Border>
-
-                        <!-- the code carries the access keys, so it is shown as dots like a password -->
-                        <TextBlock Classes="label" Text="Einrichtungscode" />
-                        <TextBox Text="{Binding SetupCodeText}" PasswordChar="●"
-                                 PlaceholderText="IPB1-… (aus der Nachricht von Imagepixel einfügen)" />
-                        <TextBlock Margin="0,6,0,0" Text="{x:Static local:Texts.SetupCodeAccepted}"
-                                   Foreground="{DynamicResource SuccessTextBrush}" IsVisible="{Binding CodeAccepted}" />
-                        <TextBlock Margin="0,6,0,0" Text="{x:Static local:Texts.SetupCodeProblem}" TextWrapping="Wrap"
-                                   Foreground="{DynamicResource ProblemTextBrush}" IsVisible="{Binding HasCodeProblem}" />
 
                         <!-- the folder inside the storage: one each for several computers in one storage -->
                         <TextBlock Classes="label" Text="{x:Static local:Texts.FolderLabel}" />

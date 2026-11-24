@@ -303,25 +303,26 @@ public sealed class WalkthroughTests : IDisposable
         // a local folder has no booked size, so nothing is shown
         Assert.False(dashboard.HasStorageStatus);
 
-        // with Imagepixel Storage the overview shows how much is booked and used
+        // where the storage keeps a status file, the overview shows how much of the quota is used
         const long gb = 1024L * 1024 * 1024;
         StorageStatus? figures = new(100 * gb, 62 * gb, DateTimeOffset.Now.AddHours(-3), StorageStatusSource.Api);
         main.LoadStorageStatus = () => Task.FromResult<StorageStatus?>(figures);
         await dashboard.RefreshStorageStatusAsync();
         Assert.True(dashboard.HasStorageStatus);
-        Assert.Equal("62 GB von 100 GB belegt (62 %)", dashboard.StorageText);
+        Assert.Equal("62 GB von 100 GB Kontingent belegt (62 %)", dashboard.StorageText);
         Assert.False(dashboard.HasStorageWarning);
         Capture(window, "06b-uebersicht-speicher");
 
-        // from 80 % on the customer is warned; backups keep running
+        // from 80 % on the customer is warned; backups keep running, the quota is no limit
         figures = figures with { UsedBytes = 86 * gb };
         await dashboard.RefreshStorageStatusAsync();
-        Assert.Contains("zu 86 % belegt", dashboard.StorageWarning);
+        Assert.Contains("Kontingent ist zu 86 % belegt", dashboard.StorageWarning);
+        Assert.Contains("laufen weiter", dashboard.StorageWarning);
         Capture(window, "06c-uebersicht-speicher-warnung");
 
         figures = figures with { UsedBytes = 104 * gb };
         await dashboard.RefreshStorageStatusAsync();
-        Assert.Contains("voll (104 %)", dashboard.StorageWarning);
+        Assert.Contains("ausgeschöpft (104 %)", dashboard.StorageWarning);
         Assert.Equal(100, dashboard.StoragePercent);
 
         // if the figures cannot be fetched, the last ones stay on the screen

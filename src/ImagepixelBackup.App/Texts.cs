@@ -186,16 +186,13 @@ public static class Texts
     public const string ChangeStorage = "Einrichtungscode oder Speicher ändern";
 
     /// <summary>What the info page says about it.</summary>
-    public static string ChangeStorageHint(bool canPair) =>
-        "Das brauchst du nur, wenn du von Imagepixel einen neuen Einrichtungscode bekommen hast, zum Beispiel nach einem Tausch der Zugangsdaten, "
-        + (canPair ? "wenn du diesen Rechner mit dem Kundenportal koppeln möchtest, " : "")
+    public const string ChangeStorageHint =
+        "Das brauchst du nur, wenn du einen neuen Einrichtungscode oder neue Zugangsdaten bekommen hast, zum Beispiel nach einem Tausch der Schlüssel, "
         + "oder wenn deine Sicherungen künftig an einem anderen Ort liegen sollen. Deine gesicherten Ordner und ihre Einstellungen bleiben dabei erhalten.";
 
     /// <summary>What the setup says when the customer came to renew the access data or move to another storage.</summary>
-    public static string SwitchNote(string storage, bool canPair) =>
-        $"Du bist mit „{storage}“ verbunden. Hier "
-        + (canPair ? "koppelst du diesen Rechner mit dem Kundenportal, gibst einen neuen Einrichtungscode ein, den du von Imagepixel bekommen hast, "
-                   : "gibst du einen neuen Einrichtungscode ein, den du von Imagepixel bekommen hast, ")
+    public static string SwitchNote(string storage) =>
+        $"Du bist mit „{storage}“ verbunden. Hier gibst du einen neuen Einrichtungscode oder die Zugangsdaten deines Wasabi-Kontos ein, "
         + "oder richtest einen anderen Speicher ein. Solange du nichts speicherst, bleibt alles, wie es ist, und deine Sicherungen laufen weiter.";
 
     /// <summary>What step 1 says about the folders that are backed up already.</summary>
@@ -215,8 +212,9 @@ public static class Texts
 
     /// <summary>What the overview says when the storage turns down the access data.</summary>
     public const string AccessProblem =
-        "Der Speicher lehnt die Zugangsdaten ab, deshalb schlagen die Sicherungen fehl. Hast du von Imagepixel einen neuen Einrichtungscode bekommen, "
-        + "gib ihn hier ein. Deine Ordner und ihre Einstellungen bleiben dabei erhalten.";
+        "Der Speicher lehnt die Zugangsdaten ab, deshalb schlagen die Sicherungen fehl. Vielleicht wurde der Zugang dieses Rechners gesperrt "
+        + "oder sein Schlüssel ausgetauscht; frag dann deinen Administrator. Hast du einen neuen Einrichtungscode oder neue Zugangsdaten bekommen, "
+        + "gib sie hier ein. Deine Ordner und ihre Einstellungen bleiben dabei erhalten.";
 
     /// <summary>Whether the error of a backup means that the storage turns down the access data.</summary>
     public static bool IsAccessProblem(string? error) =>
@@ -260,66 +258,45 @@ public static class Texts
     public const string SetupCodeAccepted = "Einrichtungscode erkannt.";
 
     public const string SetupCodeProblem =
-        "Das ist kein gültiger Einrichtungscode. Bitte füge ihn vollständig ein, so wie du ihn von Imagepixel bekommen hast.";
+        "Das ist kein gültiger Einrichtungscode. Bitte füge ihn vollständig ein, so wie du ihn bekommen hast.";
 
-    public const string SetupCodeMissing = "Bitte füge den Einrichtungscode ein, den du von Imagepixel bekommen hast.";
+    public const string SetupCodeMissing = "Bitte füge den Einrichtungscode ein, den du bekommen hast.";
 
-    public const string PairingWay = "Mit dem Kundenportal koppeln";
+    /// <summary>The name of the online storage, on the tile of the setup.</summary>
+    public const string OnlineStorage = "Wasabi";
 
-    public const string PairingWayHint = "Du gibst im Kundenportal einen Code ein, und dieser Rechner bekommt eigene Zugangsdaten.";
+    public const string OnlineStorageHint = "Sicherer Online-Speicher, mit Einrichtungscode oder eigenem Wasabi-Konto";
 
-    public const string SetupCodeWay = "Einrichtungscode eingeben";
+    public const string SetupCodeWay = "Einrichtungscode";
 
-    public const string SetupCodeWayHint = "Den Code hast du von Imagepixel in einer Nachricht bekommen.";
+    public const string SetupCodeWayHint = "Den Code bekommst du von deinem Administrator, zum Beispiel aus dem Imagepixel Leitstand.";
 
-    /// <summary>What the setup says before a code for the pairing is asked for.</summary>
-    public const string PairingIntro =
-        "Das Programm zeigt dir gleich einen Code. Melde dich im Kundenportal von Imagepixel an, wähle „Zugang für ein Gerät anlegen“ "
-        + "und gib dort den Code und einen Namen für diesen Rechner ein. Die Zugangsdaten kommen dann verschlüsselt auf diesen Rechner, "
-        + "und nur er kann sie öffnen.";
+    public const string OwnAccountWay = "Eigenes Wasabi-Konto";
 
-    public const string PairingRequestCode = "Code anzeigen";
+    public const string OwnAccountWayHint = "Bucket und Zugangsschlüssel aus deinem eigenen Wasabi-Konto eintragen.";
 
-    public const string PairingRequestNewCode = "Neuen Code anfordern";
+    /// <summary>What the setup says about the setup code before it is pasted.</summary>
+    public const string SetupCodeNoteTitle = "Diesen Code bekommst du von deinem Administrator";
 
-    public const string PairingRequesting = "Code wird angefordert …";
+    public const string SetupCodeNote =
+        "Er wird einmal angezeigt, wenn dieser Rechner für die Sicherung angelegt wird. Mehr brauchst du für die Verbindung nicht.";
 
-    /// <summary>What is said under the code while it waits to be entered in the portal.</summary>
-    public static string PairingCodeHint(DateTimeOffset validUntil) =>
-        "Gib diesen Code im Kundenportal unter „Zugang für ein Gerät anlegen“ ein, zusammen mit einem Namen für diesen Rechner. "
-        + $"Der Code gilt bis {validUntil.ToLocalTime().ToString("HH:mm", German)} Uhr.";
+    /// <summary>What the setup says when the setup code names the computer it was made for.</summary>
+    public static string SetupCodeForDevice(string deviceName) => $"Einrichtungscode für „{deviceName}“ erkannt.";
 
-    public const string PairingWaiting = "Wartet auf die Eingabe im Kundenportal …";
+    /// <summary>What the setup says about typing in the access data of an own account.</summary>
+    public const string OwnAccountNote =
+        "Die Angaben findest du in der Konsole von Wasabi: den Namen des Buckets und seine Region beim Bucket, "
+        + "Zugangsschlüssel und geheimen Schlüssel unter „Access Keys“. Ein Schlüssel nur für diesen Rechner ist am sichersten.";
 
-    public const string PairingInProgress =
-        "Der Code wurde im Kundenportal eingegeben. Imagepixel richtet jetzt die Zugangsdaten für diesen Rechner ein. "
-        + "Das kann ein paar Minuten dauern …";
+    public const string OwnBucketMissing = "Bitte gib den Namen des Buckets in deinem Wasabi-Konto ein.";
 
-    /// <summary>What the setup says once the access data have arrived.</summary>
-    public static string PairingDone(string deviceName) => deviceName.Length > 0
-        ? $"Gekoppelt: Dieser Rechner ist im Kundenportal als „{deviceName}“ eingetragen und hat eigene Zugangsdaten bekommen."
-        : "Gekoppelt: Dieser Rechner hat eigene Zugangsdaten bekommen.";
+    public const string OwnBucketProblem =
+        "Das ist kein gültiger Name für einen Bucket. Er hat 3 bis 63 Zeichen: kleine Buchstaben, Ziffern, Punkte und Bindestriche.";
 
-    public const string PairingDoneNext = "Gib jetzt unten dein Verschlüsselungs-Passwort ein, dann kann das Backup starten.";
+    public const string OwnRegionProblem = "Das ist keine gültige Region. Sie sieht zum Beispiel so aus: eu-central-2.";
 
-    /// <summary>Why the pairing cannot go on: the sentence of the portal, or a reason that lies with this computer.</summary>
-    public static string PairingFailed(string? message) =>
-        (string.IsNullOrWhiteSpace(message)
-            ? "Die Zugangsdaten aus dem Kundenportal ließen sich auf diesem Rechner nicht öffnen."
-            : message.Trim())
-        + " Du kannst einen neuen Code anfordern.";
-
-    public const string PairingExpired = "Der Code ist abgelaufen, bevor er im Kundenportal eingegeben wurde. Fordere einfach einen neuen an.";
-
-    public const string PairingUnreachable = "Das Kundenportal ist gerade nicht erreichbar. Das Programm versucht es weiter.";
-
-    /// <summary>Why no code could be asked for.</summary>
-    public static string PairingStartFailed(Exception error) => error is PortalException { IsForTheCustomer: true } portal
-        ? portal.Message
-        : "Das Kundenportal ist gerade nicht erreichbar. Bitte versuche es gleich noch einmal.";
-
-    public const string PairingMissing =
-        "Bitte kopple diesen Rechner zuerst mit dem Kundenportal: Fordere einen Code an und gib ihn dort ein. Oder gib einen Einrichtungscode ein.";
+    public const string OwnKeysMissing = "Bitte gib den Zugangsschlüssel und den geheimen Schlüssel ein.";
 
     /// <summary>
     /// The title of the folder dialog when it opens again because the place chosen was no
@@ -484,8 +461,8 @@ public static class Texts
 
     public static string StorageName(StorageSettings storage) => storage.Kind switch
     {
-        StorageKind.ImagepixelStorage when storage.DeviceName.Length > 0 => $"Imagepixel Storage · {storage.Bucket} · {storage.DeviceName}",
-        StorageKind.ImagepixelStorage => $"Imagepixel Storage · {storage.Bucket}",
+        StorageKind.ImagepixelStorage when storage.DeviceName.Length > 0 => $"Wasabi · {storage.Bucket} · {storage.DeviceName}",
+        StorageKind.ImagepixelStorage => $"Wasabi · {storage.Bucket}",
         _ => $"Ordner · {storage.LocalPath}",
     };
 
@@ -532,12 +509,14 @@ public static class Texts
 
         if (Has("InvalidAccessKeyId") || Has("SignatureDoesNotMatch") || Has("access key"))
         {
-            return "Der Zugangsschlüssel oder der geheime Schlüssel stimmt nicht.";
+            return "Der Speicher kennt diesen Zugang nicht oder hat ihn gesperrt. Bitte prüfe Zugangsschlüssel und geheimen Schlüssel. "
+                + "Wurde dieser Rechner gesperrt, bekommst du von deinem Administrator einen neuen Einrichtungscode.";
         }
 
         if (Has("Access Denied") || Has("AccessDenied"))
         {
-            return "Der Zugriff wurde verweigert. Bitte prüfe Bucket-Name und Zugangsschlüssel.";
+            return "Der Speicher hat den Zugriff abgelehnt. Vielleicht wurde der Zugang dieses Rechners gesperrt; "
+                + "sonst prüfe bitte Bucket-Name und Zugangsschlüssel.";
         }
 
         if (Has("NoSuchBucket") || Has("bucket does not exist"))

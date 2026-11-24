@@ -10,7 +10,10 @@ The setup asks for a folder below the setup code ("Ordner im Speicher"). It is t
 destination of the folders chosen there, and of folders added later, until a folder is
 given one of its own. Leaving it empty keeps the backups directly in the bucket, which is
 where every backup made before destinations existed lies. The same holds for a backup in
-a folder on a disk: a destination is a folder inside the folder of the backup.
+a folder on a disk: a destination is a folder inside the folder of the backup. A setup
+code that limits the computer to a folder of the bucket (field `p`, see
+[setup-code.md](setup-code.md)) puts every destination inside that folder, and an empty
+field keeps the backups directly in it.
 
 In the overview each folder names its destination and has a button "Ziel …" to change it.
 A folder added from the overview gets its destination first: the page "Ziel für …" comes
@@ -28,8 +31,8 @@ BUCKET/
   Büro/PC/config, …                 a backup in a folder inside a folder
 ```
 
-The booked size is that of the whole bucket. The figures the application shows count
-every backup in it, whichever destination the folders of this computer use.
+The quota is that of the whole bucket. The figures the application shows count every
+backup in it, whichever destination the folders of this computer use.
 
 ## Names
 

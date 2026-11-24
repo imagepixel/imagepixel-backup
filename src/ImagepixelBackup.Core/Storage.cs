@@ -24,6 +24,27 @@ public static class ImagepixelStorage
         string.IsNullOrWhiteSpace(region) || region == "us-east-1"
             ? "s3.wasabisys.com"
             : $"s3.{region.Trim()}.wasabisys.com";
+
+    /// <summary>
+    /// Whether a name can be that of a bucket: 3 to 63 small letters, digits, dots and
+    /// hyphens, beginning and ending with a letter or digit.
+    /// </summary>
+    public static bool IsBucketName(string name) =>
+        name.Length is >= 3 and <= 63
+        && name.All(c => c is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '.' or '-')
+        && char.IsAsciiLetterOrDigit(name[0])
+        && char.IsAsciiLetterOrDigit(name[^1]);
+
+    /// <summary>
+    /// Whether a name has the form of a region, such as "eu-central-2": two small letters,
+    /// a word of small letters and a number, joined by hyphens. Which regions there are,
+    /// the storage itself knows.
+    /// </summary>
+    public static bool IsRegionName(string name) =>
+        name.Split('-') is [{ Length: 2 } area, { Length: > 0 } direction, { Length: > 0 } number]
+        && area.All(char.IsAsciiLetterLower)
+        && direction.All(char.IsAsciiLetterLower)
+        && number.All(char.IsAsciiDigit);
 }
 
 /// <summary>Where the backup is stored. Secrets are kept separately in an <see cref="ISecretStore"/>.</summary>
@@ -59,18 +80,15 @@ public sealed class StorageSettings
 
     /// <summary>
     /// The part of the bucket the access data is limited to, for <see cref="StorageKind.ImagepixelStorage"/>:
-    /// the folder of a computer that was paired with the customer portal, in the form
-    /// <see cref="StorageFolder.Normalize"/> gives it. Every destination, <see cref="Folder"/>
-    /// included, lies inside it. Empty for access data that reach the whole bucket, as
-    /// those of a setup code do.
+    /// the folder of this computer when the setup code names one (<see cref="SetupCode.Root"/>),
+    /// in the form <see cref="StorageFolder.Normalize"/> gives it. Every destination,
+    /// <see cref="Folder"/> included, lies inside it. Empty for access data that reach the
+    /// whole bucket.
     /// </summary>
     public string Root { get; set; } = "";
 
-    /// <summary>The name this computer was given in the customer portal when it was paired there, or empty.</summary>
+    /// <summary>The name of this computer as the setup code gave it, or empty.</summary>
     public string DeviceName { get; set; } = "";
-
-    /// <summary>The number the customer portal knows this computer by, or empty if it was not paired there.</summary>
-    public string DeviceId { get; set; } = "";
 
     public bool IsS3 => Kind == StorageKind.ImagepixelStorage;
 
@@ -97,7 +115,6 @@ public sealed class StorageSettings
         ApiUrl = ApiUrl,
         Root = Root,
         DeviceName = DeviceName,
-        DeviceId = DeviceId,
         Folder = folder,
     };
 }

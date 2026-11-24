@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Net.Http;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -38,30 +37,20 @@ public partial class SetupViewModel : ViewModelBase
 
     private readonly BackupManager _manager;
     private readonly MainViewModel _main;
-    private readonly DevicePairing? _pairing;
+    // How long the look into the storage waits while the customer types access data by hand.
+    private static readonly TimeSpan TypingPause = TimeSpan.FromMilliseconds(600);
+
     private string _region = ImagepixelStorage.DefaultRegion;
     private string? _apiUrl;
     private string? _apiToken;
     private string _root = "";
     private string _deviceName = "";
-    private string _deviceId = "";
     private int _search;
-
-    // the access data the pairing with the customer portal brought, once they are there
-    private DeviceAccess? _paired;
-
-    // what the portal said when the pairing failed, or null if the reason lies here
-    private string? _pairingMessage;
-
-    // counts up whenever asking the portal about the pairing is to stop or start anew
-    private int _pairingRun;
 
     public SetupViewModel(BackupManager manager, MainViewModel main, bool switching = false)
     {
         _manager = manager;
         _main = main;
-        _pairing = main.Pairing;
-        UsePairing = _pairing is not null;
         IsSwitching = switching && manager.IsConnected;
         FoundBackups.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasFoundBackups));
         Sources.CollectionChanged += (_, _) =>
@@ -72,9 +61,8 @@ public partial class SetupViewModel : ViewModelBase
             OnPropertyChanged(nameof(ShowImagepixelFields));
             OnPropertyChanged(nameof(ShowLocalFields));
             OnPropertyChanged(nameof(ShowKeptFoldersNote));
-            OnPropertyChanged(nameof(ShowAccessChoice));
-            OnPropertyChanged(nameof(ShowPairingFields));
             OnPropertyChanged(nameof(ShowSetupCodeFields));
+            OnPropertyChanged(nameof(ShowOwnAccountFields));
         };
 
         // renewing the access data or moving: the folders that are backed up come along,
@@ -88,16 +76,6 @@ public partial class SetupViewModel : ViewModelBase
 
             Mode = SetupMode.Backup;
             Folder = manager.Config.Storage!.Folder;
-        }
-
-        // a pairing begun earlier goes on where it stopped, also after a restart
-        if (CurrentPairing() is { } pending)
-        {
-            ShowPairing(pending);
-            if (pending.Stage != Core.PairingStage.Done)
-            {
-                PairingWatch = WatchPairingAsync(++_pairingRun, checkAtOnce: true);
-            }
         }
     }
 
@@ -151,26 +129,17 @@ public partial class SetupViewModel : ViewModelBase
     /// </summary>
     public bool IsSwitching { get; }
 
-    public string SwitchNote => _manager.Config.Storage is { } storage ? Texts.SwitchNote(Texts.StorageName(storage), _pairing is not null) : "";
+    public string SwitchNote => _manager.Config.Storage is { } storage ? Texts.SwitchNote(Texts.StorageName(storage)) : "";
 
     [RelayCommand]
-    private void Back()
-    {
-        // a pairing under way is kept and goes on when the setup is opened again
-        StopWatchingPairing();
-        _main.ShowDashboard();
-    }
-
-    /// <summary>Stops asking the portal, as when the application exits. The pairing is kept and goes on when the setup opens again.</summary>
-    public void StopWatchingPairing() => _pairingRun++;
+    private void Back() => _main.ShowDashboard();
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(
         nameof(HasMode), nameof(IsBackup), nameof(IsRestore), nameof(Subtitle),
         nameof(CanChooseDestination), nameof(ShowImagepixelFields), nameof(ShowLocalFields),
         nameof(DestinationHeading), nameof(PasswordHeading), nameof(PasswordLabel), nameof(ConnectText),
-        nameof(FolderHint), nameof(FoundBackupsNote), nameof(CanPair), nameof(UsesPairing), nameof(UsesSetupCode),
-        nameof(ShowAccessChoice), nameof(ShowPairingFields), nameof(ShowSetupCodeFields))]
+        nameof(FolderHint), nameof(FoundBackupsNote), nameof(ShowSetupCodeFields), nameof(ShowOwnAccountFields))]
     public partial SetupMode Mode { get; set; }
 
     public bool HasMode => Mode != SetupMode.None;
@@ -180,7 +149,7 @@ public partial class SetupViewModel : ViewModelBase
     public bool IsRestore => Mode == SetupMode.Restore;
 
     public string Subtitle => IsSwitching && IsBackup
-        ? "Für neue Zugangsdaten von Imagepixel oder einen anderen Speicher."
+        ? "Für neue Zugangsdaten oder einen anderen Speicher."
         : Mode switch
     {
         SetupMode.Backup => "In drei Schritten ist dein Backup eingerichtet.",
@@ -220,12 +189,11 @@ public partial class SetupViewModel : ViewModelBase
         : IsSwitching ? "Zum neuen Speicher wechseln"
         : "Backup starten";
 
-    /// <summary>Where the backup is stored. Imagepixel Storage is the recommended choice and preselected.</summary>
+    /// <summary>Where the backup is stored. The online storage at Wasabi is the recommended choice and preselected.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(
         nameof(IsImagepixel), nameof(IsLocal), nameof(DestinationHint), nameof(HasDestinationHint),
-        nameof(ShowImagepixelFields), nameof(ShowLocalFields), nameof(ShowAccessChoice), nameof(ShowPairingFields),
-        nameof(ShowSetupCodeFields))]
+        nameof(ShowImagepixelFields), nameof(ShowLocalFields), nameof(ShowSetupCodeFields), nameof(ShowOwnAccountFields))]
     public partial StorageKind Kind { get; set; } = StorageKind.ImagepixelStorage;
 
     public bool IsImagepixel => Kind == StorageKind.ImagepixelStorage;
@@ -238,229 +206,59 @@ public partial class SetupViewModel : ViewModelBase
     public bool ShowLocalFields => IsLocal && CanChooseDestination;
 
     /// <summary>
-    /// Whether this computer can be paired with the customer portal instead of entering a
-    /// setup code: where the portal is set up, and only for backing up. The access data
-    /// of a pairing reach the folder of this computer alone, which holds nothing to
-    /// restore from yet.
+    /// The way to the access data of the online storage: false for the setup code that the
+    /// administrator hands out, true for the access data of a Wasabi account of one's own,
+    /// typed in by hand.
     /// </summary>
-    public bool CanPair => _pairing is not null && !IsRestore;
-
-    /// <summary>The way to the access data the customer chose: pairing with the portal, or else the setup code.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(UsesPairing), nameof(UsesSetupCode), nameof(ShowPairingFields), nameof(ShowSetupCodeFields))]
-    public partial bool UsePairing { get; set; }
+    [NotifyPropertyChangedFor(nameof(UsesSetupCode), nameof(ShowSetupCodeFields), nameof(ShowOwnAccountFields), nameof(HasCodeProblem))]
+    public partial bool UseOwnAccount { get; set; }
 
-    public bool UsesPairing => CanPair && UsePairing;
+    public bool UsesSetupCode => !UseOwnAccount;
 
-    public bool UsesSetupCode => !UsesPairing;
+    public bool ShowSetupCodeFields => ShowImagepixelFields && !UseOwnAccount;
 
-    public bool ShowAccessChoice => ShowImagepixelFields && CanPair;
-
-    public bool ShowPairingFields => ShowImagepixelFields && UsesPairing;
-
-    public bool ShowSetupCodeFields => ShowImagepixelFields && UsesSetupCode;
-
-    /// <summary>Whether the fields of Imagepixel Storage hold access data, from a setup code or from the pairing.</summary>
-    [ObservableProperty]
-    public partial bool HasAccess { get; set; }
-
-    /// <summary>How far the pairing has got, or null while no code has been asked for.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(
-        nameof(ShowPairingIntro), nameof(ShowPairingCode), nameof(IsPairingPending), nameof(IsPairingDone),
-        nameof(PairingStatusText), nameof(PairingProblem), nameof(HasPairingProblem), nameof(CanRequestPairingCode),
-        nameof(PairingRequestText))]
-    public partial PairingStage? PairingStage { get; set; }
-
-    /// <summary>The code to enter in the portal, such as "K7QM-4TZP".</summary>
-    [ObservableProperty]
-    public partial string PairingCode { get; set; } = "";
-
-    [ObservableProperty]
-    public partial string PairingCodeHint { get; set; } = "";
-
-    /// <summary>Why no code could be asked for, or null.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(PairingProblem), nameof(HasPairingProblem))]
-    public partial string? PairingStartProblem { get; set; }
-
-    /// <summary>The portal could not be asked last time. It is asked again.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(PairingStatusText))]
-    public partial bool PairingUnreachable { get; set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanRequestPairingCode), nameof(PairingRequestText))]
-    public partial bool IsRequestingPairingCode { get; set; }
-
-    public bool ShowPairingIntro => PairingStage is null or Core.PairingStage.Failed or Core.PairingStage.Expired;
-
-    public bool ShowPairingCode => PairingStage is Core.PairingStage.Waiting;
-
-    /// <summary>Whether the portal is being waited for: the code to be entered, or the access data to be made.</summary>
-    public bool IsPairingPending => PairingStage is Core.PairingStage.Waiting or Core.PairingStage.InProgress;
-
-    public bool IsPairingDone => PairingStage is Core.PairingStage.Done;
-
-    public string PairingStatusText => PairingUnreachable && IsPairingPending
-        ? Texts.PairingUnreachable
-        : PairingStage switch
-        {
-            Core.PairingStage.Waiting => Texts.PairingWaiting,
-            Core.PairingStage.InProgress => Texts.PairingInProgress,
-            _ => "",
-        };
-
-    public string PairingDoneText => Texts.PairingDone(_paired?.DeviceName ?? "");
-
-    public string? PairingProblem => PairingStage switch
-    {
-        Core.PairingStage.Failed => Texts.PairingFailed(_pairingMessage),
-        Core.PairingStage.Expired => Texts.PairingExpired,
-        _ => PairingStartProblem,
-    };
-
-    public bool HasPairingProblem => PairingProblem is not null;
-
-    public bool CanRequestPairingCode =>
-        !IsRequestingPairingCode && PairingStage is null or Core.PairingStage.Failed or Core.PairingStage.Expired;
-
-    public string PairingRequestText => IsRequestingPairingCode ? Texts.PairingRequesting
-        : PairingStage is null ? Texts.PairingRequestCode
-        : Texts.PairingRequestNewCode;
+    public bool ShowOwnAccountFields => ShowImagepixelFields && UseOwnAccount;
 
     [RelayCommand]
     private void ChooseAccessWay(string way)
     {
-        UsePairing = way == "Pairing";
+        UseOwnAccount = way == "OwnAccount";
         ErrorMessage = null;
     }
 
-    /// <summary>Asks the portal for a code and waits for it to be entered there.</summary>
-    [RelayCommand]
-    private async Task RequestPairingCodeAsync()
-    {
-        if (_pairing is null || !CanRequestPairingCode)
-        {
-            return;
-        }
+    partial void OnUseOwnAccountChanged(bool value) => UpdateAccess();
 
-        IsRequestingPairingCode = true;
-        PairingStartProblem = null;
-        ErrorMessage = null;
-        try
-        {
-            ShowPairing(await _pairing.StartAsync());
-            PairingWatch = WatchPairingAsync(++_pairingRun, checkAtOnce: false);
-        }
-        catch (Exception e) when (e is HttpRequestException or TaskCanceledException or PortalException)
-        {
-            PairingStartProblem = Texts.PairingStartFailed(e);
-        }
-        catch (System.Security.SecurityException e)
-        {
-            // the key of the pairing could not be kept
-            PairingStartProblem = Texts.Error(e);
-        }
-        finally
-        {
-            IsRequestingPairingCode = false;
-        }
-    }
+    /// <summary>The bucket of the own Wasabi account, as typed.</summary>
+    [ObservableProperty]
+    public partial string OwnBucket { get; set; } = "";
 
-    /// <summary>The asking of the portal that goes on while the pairing waits, for tests to wait for.</summary>
-    public Task PairingWatch { get; private set; } = Task.CompletedTask;
+    /// <summary>The region of that bucket, as typed.</summary>
+    [ObservableProperty]
+    public partial string OwnRegion { get; set; } = ImagepixelStorage.DefaultRegion;
 
-    /// <summary>Asks the portal once how far the pairing has got. The page does it by itself while the pairing waits.</summary>
-    public async Task CheckPairingAsync()
-    {
-        if (_pairing is null)
-        {
-            return;
-        }
+    [ObservableProperty]
+    public partial string OwnAccessKeyId { get; set; } = "";
 
-        try
-        {
-            var status = await _pairing.CheckAsync();
-            PairingUnreachable = false;
-            ShowPairing(status);
-        }
-        catch (Exception e) when (e is HttpRequestException or TaskCanceledException or PortalException)
-        {
-            // asked again next time; what was shown stays
-            PairingUnreachable = true;
-        }
-        catch (InvalidOperationException)
-        {
-            // the pairing was given up meanwhile, on another page
-            _pairingRun++;
-        }
-        catch (System.Security.SecurityException e)
-        {
-            // the access data could not be kept: said, and not asked again on its own
-            _pairingRun++;
-            PairingStartProblem = Texts.Error(e);
-        }
-    }
+    [ObservableProperty]
+    public partial string OwnSecretAccessKey { get; set; } = "";
 
-    // The pairing kept from earlier. A keyring that cannot be reached keeps it hidden
-    // instead of keeping the setup from opening: the setup code still works.
-    private PairingStatus? CurrentPairing()
-    {
-        try
-        {
-            return _pairing?.Current();
-        }
-        catch (System.Security.SecurityException)
-        {
-            return null;
-        }
-    }
+    partial void OnOwnBucketChanged(string value) => UpdateAccess();
 
-    // Asks the portal again and again while the pairing waits, until another run takes over.
-    // It begins only after the page has been made, so that nothing is asked from within the
-    // constructor and the interval set right after it applies from the start.
-    private async Task WatchPairingAsync(int run, bool checkAtOnce)
-    {
-        await Task.Yield();
-        var first = true;
-        while (run == _pairingRun && IsPairingPending)
-        {
-            if (!(first && checkAtOnce))
-            {
-                await Task.Delay(_main.PairingInterval);
-            }
+    partial void OnOwnRegionChanged(string value) => UpdateAccess();
 
-            first = false;
-            if (run != _pairingRun)
-            {
-                return;
-            }
+    partial void OnOwnAccessKeyIdChanged(string value) => UpdateAccess();
 
-            await CheckPairingAsync();
-        }
-    }
+    partial void OnOwnSecretAccessKeyChanged(string value) => UpdateAccess();
 
-    private void ShowPairing(PairingStatus status)
-    {
-        _pairingMessage = status.Message;
-        PairingCode = status.Code;
-        PairingCodeHint = Texts.PairingCodeHint(status.ValidUntil);
-        PairingStartProblem = null;
-        if (status.Access is { } access && !Equals(access, _paired))
-        {
-            _paired = access;
-            OnPropertyChanged(nameof(PairingDoneText));
-            UpdateAccess();
-        }
+    /// <summary>Whether the fields of the online storage hold access data, from a setup code or typed in by hand.</summary>
+    [ObservableProperty]
+    public partial bool HasAccess { get; set; }
 
-        PairingStage = status.Stage;
-        OnPropertyChanged(nameof(PairingProblem));
-        OnPropertyChanged(nameof(HasPairingProblem));
-        OnPropertyChanged(nameof(PairingStatusText));
-    }
+    /// <summary>The name of this computer as the setup code gives it, or empty.</summary>
+    public string DeviceName => _deviceName;
 
-    partial void OnUsePairingChanged(bool value) => UpdateAccess();
+    public bool HasDeviceName => _deviceName.Length > 0;
 
     /// <summary>Shows the password while typing. It cannot be reset later, so typos matter.</summary>
     [ObservableProperty]
@@ -469,13 +267,16 @@ public partial class SetupViewModel : ViewModelBase
     [ObservableProperty]
     public partial string SetupCodeText { get; set; } = "";
 
-    /// <summary>Whether what was entered is a setup code of Imagepixel. The storage cannot be reached without one.</summary>
+    /// <summary>Whether what was entered is a setup code. Without one, the access data have to be typed in by hand.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasCodeProblem))]
     public partial bool CodeAccepted { get; set; }
 
     /// <summary>Something was entered, but it is not a setup code.</summary>
-    public bool HasCodeProblem => !CodeAccepted && !string.IsNullOrWhiteSpace(SetupCodeText);
+    public bool HasCodeProblem => UsesSetupCode && !CodeAccepted && !string.IsNullOrWhiteSpace(SetupCodeText);
+
+    /// <summary>What is said under a setup code that works, with the name of the computer if the code names one.</summary>
+    public string CodeAcceptedText => HasDeviceName ? Texts.SetupCodeForDevice(DeviceName) : Texts.SetupCodeAccepted;
 
     [ObservableProperty]
     public partial string Bucket { get; set; } = "";
@@ -487,8 +288,9 @@ public partial class SetupViewModel : ViewModelBase
     public partial string SecretAccessKey { get; set; } = "";
 
     /// <summary>
-    /// The folder inside the Imagepixel Storage that holds the backup, as the customer
-    /// typed it. Empty for a backup that lies directly in the storage.
+    /// The folder inside the online storage that holds the backup, as the customer typed
+    /// it. Empty for a backup that lies directly in the storage, or directly in the folder
+    /// of this computer when the setup code names one.
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FolderProblem), nameof(HasFolderProblem))]
@@ -551,9 +353,7 @@ public partial class SetupViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(DestinationHint));
         OnPropertyChanged(nameof(HasDestinationHint));
-
-        // restoring takes the setup code, also where pairing was chosen for backing up
-        UpdateAccess();
+        NotifyStorageChange();
     }
 
     partial void OnSetupCodeTextChanged(string value)
@@ -568,44 +368,72 @@ public partial class SetupViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Fills the fields of Imagepixel Storage from the way the customer chose: the setup
-    /// code, which carries the bucket and both keys, or the access data of the pairing,
-    /// which carry the folder of this computer in the bucket as well.
+    /// Fills the fields of the online storage from the way the customer chose: the setup
+    /// code, which carries the bucket and both keys and maybe the folder of this computer,
+    /// or the access data of an own Wasabi account, typed in by hand.
     /// </summary>
     private void UpdateAccess()
     {
         SetupCode? code = SetupCode.TryDecode(SetupCodeText, out var decoded) ? decoded : null;
         CodeAccepted = code is not null;
 
-        if (UsesPairing && _paired is { } access)
+        if (UseOwnAccount)
         {
             (Bucket, AccessKeyId, SecretAccessKey, _region, _apiUrl, _apiToken) =
-                (access.Bucket, access.AccessKeyId, access.SecretAccessKey, access.Region, access.ApiUrl, access.ApiToken);
-            (_root, _deviceName, _deviceId) = (access.Root, access.DeviceName, access.DeviceId);
+                (OwnBucket.Trim(), OwnAccessKeyId.Trim(), OwnSecretAccessKey.Trim(), OwnRegionNormalized, null, null);
+            (_root, _deviceName) = ("", "");
         }
-        else if (UsesSetupCode && code is not null)
+        else if (code is not null)
         {
             (Bucket, AccessKeyId, SecretAccessKey, _region, _apiUrl, _apiToken) =
                 (code.Bucket, code.AccessKeyId, code.SecretAccessKey, code.Region, code.ApiUrl, code.ApiToken);
-            (_root, _deviceName, _deviceId) = ("", "", "");
+            (_root, _deviceName) = (code.Root, code.DeviceName);
         }
         else
         {
             (Bucket, AccessKeyId, SecretAccessKey, _region, _apiUrl, _apiToken) =
                 ("", "", "", ImagepixelStorage.DefaultRegion, null, null);
-            (_root, _deviceName, _deviceId) = ("", "", "");
+            (_root, _deviceName) = ("", "");
         }
 
-        var hadAccess = HasAccess;
-        HasAccess = Bucket.Length > 0;
-        if (HasAccess && !hadAccess)
-        {
-            ErrorMessage = null;
-        }
-
+        HasAccess = Bucket.Length > 0 && AccessKeyId.Length > 0 && SecretAccessKey.Length > 0
+            && (UsesSetupCode || OwnAccountProblem is null);
+        OnPropertyChanged(nameof(DeviceName));
+        OnPropertyChanged(nameof(HasDeviceName));
+        OnPropertyChanged(nameof(CodeAcceptedText));
         OnPropertyChanged(nameof(HasCodeProblem));
         NotifyStorageChange();
         Search = LookForBackupsAsync();
+    }
+
+    // the region as it goes into the address of the storage: no spaces, in small letters
+    private string OwnRegionNormalized =>
+        string.IsNullOrWhiteSpace(OwnRegion) ? ImagepixelStorage.DefaultRegion : OwnRegion.Trim().ToLowerInvariant();
+
+    /// <summary>What is wrong with the access data of the own account so far, or null.</summary>
+    private string? OwnAccountProblem
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(OwnBucket))
+            {
+                return Texts.OwnBucketMissing;
+            }
+
+            if (!ImagepixelStorage.IsBucketName(OwnBucket.Trim()))
+            {
+                return Texts.OwnBucketProblem;
+            }
+
+            if (!ImagepixelStorage.IsRegionName(OwnRegionNormalized))
+            {
+                return Texts.OwnRegionProblem;
+            }
+
+            return string.IsNullOrWhiteSpace(OwnAccessKeyId) || string.IsNullOrWhiteSpace(OwnSecretAccessKey)
+                ? Texts.OwnKeysMissing
+                : null;
+        }
     }
 
     /// <summary>
@@ -621,10 +449,19 @@ public partial class SetupViewModel : ViewModelBase
         IReadOnlyList<string> found;
         try
         {
-            // a paired computer starts with a folder of its own, which holds no backup yet
-            if (!HasAccess || UsesPairing)
+            if (!HasAccess)
             {
                 return;
+            }
+
+            // access data typed by hand are looked at once the customer pauses
+            if (UseOwnAccount)
+            {
+                await Task.Delay(TypingPause);
+                if (search != _search)
+                {
+                    return;
+                }
             }
 
             found = await _main.FindBackupFolders(StorageFromFields(""), SecretAccessKey.Trim());
@@ -663,7 +500,6 @@ public partial class SetupViewModel : ViewModelBase
         ApiUrl = IsImagepixel ? _apiUrl ?? "" : "",
         Root = IsImagepixel ? _root : "",
         DeviceName = IsImagepixel ? _deviceName : "",
-        DeviceId = IsImagepixel ? _deviceId : "",
         Folder = folder,
     };
 
@@ -733,8 +569,7 @@ public partial class SetupViewModel : ViewModelBase
             return;
         }
 
-        // a paired computer backs up to the top of its own folder in the storage
-        var folder = IsImagepixel && UsesSetupCode ? StorageFolder.Normalize(Folder) : "";
+        var folder = IsImagepixel ? StorageFolder.Normalize(Folder) : "";
         var storage = StorageFromFields(folder);
         var secret = IsImagepixel ? SecretAccessKey.Trim() : null;
         var apiToken = IsImagepixel ? _apiToken : null;
@@ -776,13 +611,6 @@ public partial class SetupViewModel : ViewModelBase
                     ? "Das Verschlüsselungs-Passwort passt nicht zu diesem Backup."
                     : "An diesem Ort liegt bereits ein Backup, aber das Passwort passt nicht dazu.";
                 return;
-            }
-
-            // the access data of the pairing are kept with the storage from now on
-            if (IsImagepixel && UsesPairing)
-            {
-                _pairingRun++;
-                _pairing?.Forget();
             }
 
             // another storage is connected now: what ran for the previous one ends here
@@ -852,18 +680,19 @@ public partial class SetupViewModel : ViewModelBase
 
         if (IsImagepixel)
         {
-            if (UsesPairing)
+            if (UseOwnAccount)
             {
-                if (!HasAccess)
+                if (OwnAccountProblem is { } own)
                 {
-                    return Texts.PairingMissing;
+                    return own;
                 }
             }
             else if (!CodeAccepted)
             {
                 return HasCodeProblem ? Texts.SetupCodeProblem : Texts.SetupCodeMissing;
             }
-            else if (FolderProblem is { } problem)
+
+            if (FolderProblem is { } problem)
             {
                 return problem;
             }

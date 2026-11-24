@@ -1,13 +1,15 @@
 # Storage status
 
-The application shows how much storage a customer has booked and how much of it is
-used, and warns from 80 % on. Backups keep running when the storage is full; the
-figures inform, they do not block.
+The application shows the quota of the storage and how much of it is used, and warns
+from 80 % on. The quota is a mark the administrator sets in the control centre and can
+raise at any time, so that a sharp rise is noticed at once. It is not a booking and not a
+limit: backups keep running beyond it; the figures inform, they do not block.
 
-The figures come from two places. The application asks the service of Imagepixel
-first. If no service is set up, or it cannot be reached, or it answers with an error,
-the application reads the status file from the bucket of the customer instead. If
-neither has figures, nothing is shown. A backup in a local folder has no booked size.
+The figures come from two places. The application asks a service first, if the setup
+code or the status file names one. If none is set up, or it cannot be reached, or it
+answers with an error, the application reads the status file from the bucket instead.
+If neither has figures, nothing is shown: so it is with an own Wasabi account whose
+bucket holds no status file, and with a backup in a local folder.
 
 ## The document
 
@@ -26,7 +28,7 @@ The service and the status file use the same JSON document:
 
 | Field | Meaning |
 |---|---|
-| `bookedBytes` | The booked size. 1 GB is 1024³ bytes. Must be greater than 0. |
+| `bookedBytes` | The quota. The name stays from the time the storage was booked. 1 GB is 1024³ bytes. Must be greater than 0. |
 | `usedBytes` | What the storage of the customer holds, servers and computers together. |
 | `measuredAt` | When `usedBytes` was measured. |
 | `apiUrl`, `apiToken` | Optional, only read from the status file: where the service is and which token to send. |
@@ -58,12 +60,14 @@ The file is only as fresh as whoever wrote it last. After reading it, the applic
 therefore lists the bucket and adds up what lies in it, without the objects below
 `imagepixel/`. If that is more than the file says, the application shows its own
 measurement with the time it was made; otherwise the figure of the file stays, because
-it may count storage this computer cannot see. The booked size always comes from the
-file. The figures of the service are taken as they are.
+it may count storage this computer cannot see. The quota always comes from the file.
+The figures of the service are taken as they are.
 
 A storage can hold several backups, each in a [destination of its own](storage-folders.md).
-The booked size is that of the whole bucket, so everything in it is counted, whichever
-destinations the folders of this computer go to.
+The quota is that of the whole bucket, so everything in it is counted, whichever
+destinations the folders of this computer go to. A computer whose setup code limits it
+to a folder of the bucket (field `p`, see [setup-code.md](setup-code.md)) can only list
+that folder, so its own measurement counts that folder alone.
 
 The access key of a customer should be allowed to read the file but not to change it.
 A statement like this in the policy of the customer does that:

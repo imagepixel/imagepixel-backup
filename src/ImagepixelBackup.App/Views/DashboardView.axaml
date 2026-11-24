@@ -28,11 +28,11 @@
         <ScrollViewer Grid.Row="1">
             <StackPanel Margin="28,22" Spacing="14">
 
-                <!-- how much of the booked storage is used -->
+                <!-- how much of the quota is used; shown only where the storage keeps a status file -->
                 <Border Classes="card" Padding="20,14" IsVisible="{Binding HasStorageStatus}">
                     <StackPanel Spacing="8">
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                            <TextBlock FontWeight="SemiBold" Text="Dein Speicher bei Imagepixel" />
+                            <TextBlock FontWeight="SemiBold" Text="Dein Speicher" />
                             <TextBlock Grid.Column="1" Classes="subtle" Text="{Binding StorageDetail}" TextWrapping="NoWrap" />
                         </Grid>
                         <ProgressBar Minimum="0" Maximum="100" Value="{Binding StoragePercent}"

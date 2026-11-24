@@ -161,8 +161,8 @@ public sealed class StorageStatusService(HttpClient http)
 
     /// <summary>
     /// Adds up what lies in the bucket, without what Imagepixel itself keeps there; for
-    /// a computer paired with the customer portal, what lies in its own folder of the
-    /// bucket, the only part it can list. Returns null if the bucket cannot be listed.
+    /// access data limited to the folder of one computer, what lies in that folder, the
+    /// only part they can list. Returns null if the bucket cannot be listed.
     /// </summary>
     private static async Task<long?> MeasureAsync(S3Client client, StorageSettings storage, CancellationToken cancellationToken)
     {

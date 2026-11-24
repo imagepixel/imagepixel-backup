@@ -3,8 +3,8 @@ namespace ImagepixelBackup.Core;
 /// <summary>
 /// Looks into an Imagepixel Storage for the backups it holds. A backup lies either
 /// directly in the bucket or in a folder at its top, see <see cref="StorageSettings.Folder"/>;
-/// for a computer paired with the customer portal, in its own folder of the bucket
-/// or a folder inside that (<see cref="StorageSettings.Root"/>).
+/// for access data limited to the folder of one computer, in that folder or a folder
+/// inside it (<see cref="StorageSettings.Root"/>).
 /// Knowing them, the application can offer the folders instead of asking the customer
 /// to remember how one was spelled.
 /// </summary>
@@ -38,7 +38,7 @@ public sealed class BackupFinder(HttpClient http)
 
         try
         {
-            // a computer paired with the customer portal only reaches its own folder of the bucket
+            // access data limited to the folder of one computer reach nothing else of the bucket
             var top = storage.PathOf("");
             var prefix = top.Length > 0 ? top + "/" : "";
 

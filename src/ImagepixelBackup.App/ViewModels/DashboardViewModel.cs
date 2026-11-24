@@ -89,20 +89,23 @@ public partial class DashboardViewModel : ViewModelBase
     public double StoragePercent => Math.Min(100, (StorageStatus?.Fraction ?? 0) * 100);
 
     public string StorageText => StorageStatus is { } status
-        ? $"{Texts.Bytes(status.UsedBytes)} von {Texts.Bytes(status.BookedBytes)} belegt ({Texts.Percent(status.Fraction)})"
+        ? $"{Texts.Bytes(status.UsedBytes)} von {Texts.Bytes(status.BookedBytes)} Kontingent belegt ({Texts.Percent(status.Fraction)})"
         : "";
 
     public string StorageDetail => StorageStatus is { } status
         ? "Stand: " + Texts.Day(status.MeasuredAt, DateTimeOffset.Now)
         : "";
 
-    /// <summary>The warning shown from 80 % on. Backups keep running when the storage is full.</summary>
+    /// <summary>
+    /// The warning shown from 80 % of the quota on. The quota is a mark the administrator
+    /// sets to notice a sharp rise, not a limit: backups keep running beyond it.
+    /// </summary>
     public string? StorageWarning => StorageStatus switch
     {
         { IsFull: true } status =>
-            $"Dein gebuchter Speicher ist voll ({Texts.Percent(status.Fraction)}). Die Sicherungen laufen weiter. Imagepixel meldet sich bei dir wegen der nächsten Größe.",
+            $"Das Kontingent ist ausgeschöpft ({Texts.Percent(status.Fraction)}). Die Sicherungen laufen weiter. Dein Administrator kann das Kontingent erhöhen.",
         { IsWarning: true } status =>
-            $"Dein Speicher ist zu {Texts.Percent(status.Fraction)} belegt. Die Sicherungen laufen weiter. Imagepixel meldet sich bei dir wegen der nächsten Größe.",
+            $"Das Kontingent ist zu {Texts.Percent(status.Fraction)} belegt. Die Sicherungen laufen weiter. Dein Administrator kann es bei Bedarf erhöhen.",
         _ => null,
     };
 

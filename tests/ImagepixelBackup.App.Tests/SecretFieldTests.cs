@@ -80,6 +80,35 @@ public sealed class SecretFieldTests : IDisposable
         await main.ShutdownAsync();
     }
 
+    [AvaloniaFact]
+    public async Task The_secret_key_of_an_own_account_is_not_handed_out()
+    {
+        var manager = new BackupManager(new ConfigStore(_root), new MemorySecretStore(), "restic");
+        manager.AcceptTerms(Texts.TermsVersion);
+        var main = new MainViewModel(manager, []);
+        main.FindBackupFolders = (_, _) => Task.FromResult<IReadOnlyList<string>>([]);
+        var window = new MainWindow { DataContext = main };
+        window.Show();
+
+        var setup = Assert.IsType<SetupViewModel>(main.CurrentPage);
+        setup.ChooseModeCommand.Execute("Backup");
+        setup.Sources.Add(_root);
+        setup.ChooseAccessWayCommand.Execute("OwnAccount");
+        setup.OwnBucket = "sicherung-buero";
+        setup.OwnAccessKeyId = "EIGENERSCHLUESSEL01";
+        setup.OwnSecretAccessKey = Secret;
+        Dispatcher.UIThread.RunJobs();
+
+        // the secret key is the one field of the own account that holds something secret
+        var boxes = window.GetVisualDescendants().OfType<TextBox>().ToList();
+        var holder = Assert.Single(boxes, box => box.Text == Secret);
+        Assert.NotEqual(default, holder.PasswordChar);
+        Assert.DoesNotContain(boxes, box => ValueOf(box) is { } value && value.Contains(Secret));
+
+        window.Close();
+        await main.ShutdownAsync();
+    }
+
     private static string? ValueOf(TextBox box) =>
         ControlAutomationPeer.CreatePeerForElement(box).GetProvider<IValueProvider>()?.Value;
 }

@@ -44,7 +44,10 @@ void PrintUsage()
         ipb-admin - Werkzeug für Imagepixel Storage
 
         Einrichtungscode für einen Kunden erzeugen:
-          ipb-admin setup-code --bucket NAME --credentials DATEI.csv [--region REGION] [--api URL --token TOKEN]
+          ipb-admin setup-code --bucket NAME --credentials DATEI.csv [--region REGION] [--path ORDNER/] [--name GERÄT] [--api URL --token TOKEN]
+
+          --path nennt den Ordner, auf den der Zugangsschlüssel begrenzt ist, etwa geraete/<benutzer>/;
+          alle Sicherungen mit diesem Code liegen darin. --name ist der Name des Rechners, den das Programm zeigt.
 
         Belegung messen und die Statusdatei in den Bucket schreiben:
           ipb-admin write-status --bucket NAME --credentials DATEI.csv --booked-gb ZAHL [--region REGION] [--api URL --token TOKEN]
@@ -62,7 +65,15 @@ int SetupCodeCommand(Dictionary<string, string> options)
 {
     var (accessKeyId, secretAccessKey) = ReadCredentials(options);
     var (apiUrl, apiToken) = ReadApi(options);
-    var code = new SetupCode(Required(options, "bucket"), accessKeyId, secretAccessKey, Region(options), apiUrl, apiToken);
+    var root = StorageFolder.Normalize(options.GetValueOrDefault("path"));
+    if (StorageFolder.Check(root) != StorageFolderProblem.None)
+    {
+        throw new ArgumentException("--path ist kein Ordner, den der Speicher aufnehmen kann.");
+    }
+
+    var code = new SetupCode(
+        Required(options, "bucket"), accessKeyId, secretAccessKey, Region(options), apiUrl, apiToken,
+        root, options.GetValueOrDefault("name")?.Trim() ?? "");
 
     // the code contains the access key: it is meant for the customer only
     Console.WriteLine(code.Encode());

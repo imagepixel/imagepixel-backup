@@ -12,12 +12,10 @@ then on. Your data is encrypted on your computer before it leaves it.
 - Pick folders, or on Windows and macOS OneDrive, Google Drive and iCloud Drive with one
   click
 - Back up every hour, every day at a set time, or only on demand
-- Store the backup in Imagepixel Storage, or in a folder such as a USB drive
-- Connect to Imagepixel Storage with a setup code, or by
-  [pairing the computer with the customer portal](docs/device-pairing.md): the
-  application shows a code, the customer enters it in the portal, and the computer gets
-  access data of its own, encrypted on the way for it alone and limited to its own folder
-  in the storage
+- Store the backup in a bucket at Wasabi, or in a folder such as a USB drive. The access
+  data come with a [setup code](docs/setup-code.md) from the administrator, which can limit
+  the computer to a folder of its own in the bucket, or are typed in from an own Wasabi
+  account.
 - Give each folder its own [destination](docs/storage-folders.md) inside the storage, so
   that several computers share one storage without their backups getting mixed up, and
   change it later. The backups at the previous destination are kept, or deleted after 7,
@@ -40,8 +38,11 @@ then on. Your data is encrypted on your computer before it leaves it.
 
 **Keeping an eye on it**
 
-- With Imagepixel Storage the overview shows how much of the booked storage is used and
-  warns from 80 % on. Backups keep running when the storage is full.
+- Where the bucket holds a [status file](docs/storage-status.md), the overview shows how
+  much of the quota set by the administrator is used and warns from 80 % on. The quota is
+  a mark to notice a sharp rise, not a limit: backups keep running beyond it.
+- When the storage turns the access data down, for example because the computer was
+  locked, the overview says so and offers to enter a new setup code.
 - The application stays in the notification area, on macOS in the menu bar, for scheduled
   backups. On macOS and Linux it offers to start at login; on Windows the setup program
   takes care of that.
@@ -70,7 +71,7 @@ once, at its first start, and asks to confirm it. They come with every download.
 
 ## Status
 
-Early development, version 0.1.9. The
+Early development, version 0.2.0. The
 [pre-release](https://github.com/imagepixel/imagepixel-backup/releases) has downloads for
 Windows, macOS and Linux. None of them is signed yet.
 
@@ -117,9 +118,6 @@ dotnet test
 
 # builds artifacts\installer\ImagepixelBackup-Setup-<version>.exe
 .\build-installer.ps1
-
-# the same, offering pairing with the customer portal named in the file
-.\build-installer.ps1 -PortalSettings <path>\portal.json
 ```
 
 The setup program brings everything a computer needs: the application with the .NET
@@ -176,7 +174,7 @@ tests/run-on-linux.sh
 
 # installs a package on a fresh system and checks that the application starts
 docker run --rm --cap-add IPC_LOCK -v "$PWD:/src" ubuntu:rolling \
-    bash /src/installer/linux/smoke-test.sh /src/artifacts/linux/imagepixel-backup_0.1.9_amd64.deb
+    bash /src/installer/linux/smoke-test.sh /src/artifacts/linux/imagepixel-backup_0.2.0_amd64.deb
 ```
 
 Both packages put the application with the .NET runtime and restic into
@@ -197,12 +195,12 @@ interface without showing a window. Pictures of every screen are saved to
 
 | Path | Content |
 |---|---|
-| `src/ImagepixelBackup.Core` | Runs restic, stores settings and secrets, schedules backups, reads the storage status, pairs with the customer portal |
+| `src/ImagepixelBackup.Core` | Runs restic, stores settings and secrets, schedules backups, reads the storage status |
 | `src/ImagepixelBackup.App` | The desktop application (Avalonia) |
 | `tools/ImagepixelBackup.Admin` | `ipb-admin`: creates setup codes and writes the storage status file |
 | `restic-overlay` | Files added to restic so that it can mount repositories on Windows |
 | `installer` | The script of the setup program for Windows, and what the disk image for macOS and the packages for Linux are made of |
-| `docs` | [How the application learns how much storage is booked and used](docs/storage-status.md), [destinations in a storage](docs/storage-folders.md), [pairing with the customer portal](docs/device-pairing.md) |
+| `docs` | [Connecting to the online storage and the setup code](docs/setup-code.md), [destinations in a storage](docs/storage-folders.md), [how the application learns the quota and how much is used](docs/storage-status.md) |
 | `tests` | Tests for the core and a walkthrough of the user interface |
 
 ## Opening a backup as a drive
